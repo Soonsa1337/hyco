@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react';
 import { supabase, inviteCode } from '../lib/supabase';
 import Avatar from './Avatar.jsx';
 import { bus } from '../lib/bus';
+import { isSurge, isAnimatedImage, PERKS } from '../lib/surge';
 
 export const THEMES = { ember: 'Ember', blurple: 'Blurple', mint: 'Mint', sakura: 'Sakura', cyber: 'Cyber' };
 const ACCENTS = ['#ff7a1a', '#f04747', '#f47fff', '#7289da', '#3ba55d', '#00d4ff', '#faa61a', '#ffffff'];
 
-export default function Settings({ me, voice, onClose }) {
-  const [tab, setTab] = useState('profile');
+export default function Settings({ me, profiles = {}, appSettings = {}, voice, initialTab = 'profile', onClose }) {
+  const [tab, setTab] = useState(initialTab);
+  const surge = isSurge(me);
+  const [bannerUrl, setBannerUrl] = useState(me.banner_url);
+  const [grant, setGrant] = useState({ user: '', months: '1', msg: '' });
+  const [adm, setAdm] = useState({ tenor_key: appSettings.tenor_key || '', surge_info: appSettings.surge_info || '', stripe_enabled: appSettings.stripe_enabled === 'on', msg: '' });
+  const [buying, setBuying] = useState(false);
   const [username, setUsername] = useState(me.username);
   const [status, setStatus] = useState(me.status || '');
   const [bio, setBio] = useState(me.bio || '');
@@ -90,18 +96,51 @@ export default function Settings({ me, voice, onClose }) {
   const upload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return setMsg('Avatar max. 2 MB.');
+    if (file.size > (surge ? 8 : 2) * 1024 * 1024) return setMsg(surge ? 'Avatar max. 8 MB.' : 'Avatar max. 2 MB.');
+    if (!surge && isAnimatedImage(file)) return setMsg('Animierte Avatare gibt es mit Hyco Surge.');
     const path = `${me.id}/${Date.now()}-${file.name.replace(/[^\w.]/g, '_')}`;
     const { error } = await supabase.storage.from('avatars').upload(path, file);
     if (error) return setMsg(error.message);
     setAvatarUrl(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl);
   };
 
+  const uploadBanner = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) return setMsg('Banner max. 8 MB.');
+    const path = `${me.id}/banner-${Date.now()}-${file.name.replace(/[^\w.]/g, '_')}`;
+    const { error } = await supabase.storage.from('avatars').upload(path, file);
+    if (error) return setMsg(error.message);
+    setBannerUrl(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl);
+  };
+
+  const giveSurge = async (months) => {
+    if (!grant.user) return setGrant({ ...grant, msg: 'Bitte Nutzer wählen.' });
+    const { data, error } = await supabase.rpc('grant_surge', { target: grant.user, months });
+    setGrant({ ...grant, msg: error ? error.message : months > 0 ? `Surge vergeben bis ${new Date(data).toLocaleDateString('de-DE')}.` : 'Surge entzogen.' });
+  };
+  const saveAdmin = async () => {
+    const rows = [['tenor_key', adm.tenor_key.trim()], ['surge_info', adm.surge_info.trim()], ['stripe_enabled', adm.stripe_enabled ? 'on' : 'off']].map(([key, value]) => ({ key, value }));
+    const { error } = await supabase.from('app_settings').upsert(rows);
+    setAdm({ ...adm, msg: error ? error.message : 'Gespeichert.' });
+  };
+  const buySurge = async () => {
+    setBuying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('surge-checkout', { body: {} });
+      if (error || !data?.url) throw new Error(error?.message || data?.error || 'Checkout nicht verfügbar');
+      window.open(data.url, '_blank');
+    } catch (e) {
+      setMsg(`Bezahlung gerade nicht möglich: ${e.message}`);
+    }
+    setBuying(false);
+  };
+
   const save = async (e) => {
     e.preventDefault();
     const { error } = await supabase
       .from('profiles')
-      .update({ username: username.trim(), status: status.trim(), bio: bio.trim(), accent, avatar_url: avatarUrl })
+      .update({ username: username.trim(), status: status.trim(), bio: bio.trim(), accent, avatar_url: avatarUrl, banner_url: surge ? bannerUrl : me.banner_url })
       .eq('id', me.id);
     if (error) return setMsg(error.code === '23505' ? 'Benutzername ist vergeben.' : error.message);
     onClose();
@@ -124,7 +163,7 @@ export default function Settings({ me, voice, onClose }) {
       <div className="settings" onClick={(e) => e.stopPropagation()}>
         <nav>
           <h4>Einstellungen</h4>
-          {[['profile', 'Mein Profil'], ['audio', 'Sprache & Audio'], ['look', 'Darstellung'], ['invite', 'Freunde einladen'], ['updates', 'Updates']].map(([k, label]) => (
+          {[['profile', 'Mein Profil'], ['surge', '⚡ Hyco Surge'], ['audio', 'Sprache & Audio'], ['look', 'Darstellung'], ['invite', 'Freunde einladen'], ['updates', 'Updates']].map(([k, label]) => (
             <a key={k} className={tab === k ? 'channel active' : 'channel'} onClick={() => setTab(k)}>{label}</a>
           ))}
           <span className="grow" />
@@ -134,12 +173,16 @@ export default function Settings({ me, voice, onClose }) {
           {tab === 'profile' && (
             <>
               <h2>Mein Profil</h2>
-              <div className="preview" style={{ background: `linear-gradient(135deg, ${accent}, #1b2030)` }}>
+              <div className={surge ? 'preview surge-glow' : 'preview'} style={{ background: surge && bannerUrl ? `url(${bannerUrl}) center/cover` : `linear-gradient(135deg, ${accent}, #1b2030)` }}>
                 <Avatar profile={{ username, avatar_url: avatarUrl, accent }} size={72} />
                 <div><b>{username}</b><small>{status || 'Online'}</small></div>
               </div>
-              <label>Avatar</label>
+              <label>Avatar {surge ? '(auch animiert: GIF, WebP)' : '(animierte Avatare mit Surge)'}</label>
               <input type="file" accept="image/*" onChange={upload} />
+              <label>Profilbanner {surge ? '' : '– Surge-Vorteil'}</label>
+              {surge
+                ? <div className="row"><input type="file" accept="image/*" onChange={uploadBanner} />{bannerUrl && <button type="button" onClick={() => setBannerUrl(null)}>Entfernen</button>}</div>
+                : <p className="dim small" style={{ margin: 0 }}>Mit Hyco Surge kannst du ein eigenes Bild als Banner setzen. <a onClick={() => setTab('surge')}>Mehr erfahren</a></p>}
               <label>Benutzername</label>
               <input value={username} minLength={3} maxLength={24} required onChange={(e) => setUsername(e.target.value)} />
               <label>Status-Text</label>
@@ -149,6 +192,7 @@ export default function Settings({ me, voice, onClose }) {
               <label>Profilfarbe</label>
               <div className="swatches">
                 {ACCENTS.map((c) => <button type="button" key={c} className={c === accent ? 'swatch on' : 'swatch'} style={{ background: c }} onClick={() => setAccent(c)} />)}
+                {surge && <input type="color" className="color" title="Beliebige Farbe (Surge)" value={/^#[0-9a-f]{6}$/i.test(accent) ? accent : '#ff7a1a'} onChange={(e) => setAccent(e.target.value)} />}
               </div>
             </>
           )}
@@ -202,6 +246,49 @@ export default function Settings({ me, voice, onClose }) {
               <p className="dim">Gib deinen Freunden die Hyco-Setup-Datei und diesen Code. Beim ersten Start fügen sie ihn unter „Einladungscode" ein.</p>
               <textarea readOnly rows={5} value={inviteCode} onFocus={(e) => e.target.select()} />
               <button type="button" onClick={() => navigator.clipboard.writeText(inviteCode)}>Code kopieren</button>
+            </>
+          )}
+          {tab === 'surge' && (
+            <>
+              <div className="surge-hero">
+                <h2>⚡ Hyco Surge</h2>
+                <p>{surge ? `Du hast Surge – aktiv bis ${new Date(me.surge_until).toLocaleDateString('de-DE')}.` : 'Mehr Ausdruck, mehr Qualität. Das Premium-Paket für Hyco.'}</p>
+              </div>
+              <div className="perks">
+                {PERKS.map(([icon, text]) => <div key={text} className="perk"><span>{icon}</span>{text}</div>)}
+              </div>
+              {!surge && (appSettings.stripe_enabled === 'on'
+                ? <div className="row"><button type="button" className="primary" disabled={buying} onClick={buySurge}>{buying ? 'Öffne Bezahlung…' : 'Surge abonnieren'}</button></div>
+                : <p className="ok">{appSettings.surge_info || 'Frag den Admin nach Surge.'}</p>)}
+              {me.is_admin && (
+                <>
+                  <h2>Surge vergeben (Admin)</h2>
+                  <div className="row">
+                    <select value={grant.user} onChange={(e) => setGrant({ ...grant, user: e.target.value, msg: '' })}>
+                      <option value="">Nutzer wählen…</option>
+                      {Object.values(profiles).sort((a, b) => a.username.localeCompare(b.username)).map((p) => (
+                        <option key={p.id} value={p.id}>{p.username}{isSurge(p) ? ` · Surge bis ${new Date(p.surge_until).toLocaleDateString('de-DE')}` : ''}</option>
+                      ))}
+                    </select>
+                    <select value={grant.months} onChange={(e) => setGrant({ ...grant, months: e.target.value })}>
+                      {[1, 3, 6, 12, 120].map((m) => <option key={m} value={m}>{m === 120 ? 'Dauerhaft (10 Jahre)' : `${m} Monat${m > 1 ? 'e' : ''}`}</option>)}
+                    </select>
+                  </div>
+                  <div className="row">
+                    <button type="button" className="primary" onClick={() => giveSurge(Number(grant.months))}>Vergeben / verlängern</button>
+                    <button type="button" className="danger" onClick={() => giveSurge(0)}>Entziehen</button>
+                  </div>
+                  {grant.msg && <p className={/vergeben|entzogen/.test(grant.msg) ? 'ok' : 'error'}>{grant.msg}</p>}
+
+                  <h2>Surge-Einstellungen (Admin)</h2>
+                  <label>Hinweistext für Nutzer ohne Surge</label>
+                  <input value={adm.surge_info} maxLength={200} onChange={(e) => setAdm({ ...adm, surge_info: e.target.value })} />
+                  <label>Tenor-API-Key (für die GIF-Suche, kostenlos unter developers.google.com/tenor)</label>
+                  <input value={adm.tenor_key} onChange={(e) => setAdm({ ...adm, tenor_key: e.target.value })} />
+                  <label className="row check"><input type="checkbox" checked={adm.stripe_enabled} onChange={(e) => setAdm({ ...adm, stripe_enabled: e.target.checked })} />Bezahlung über Stripe anbieten (Funktionen müssen eingerichtet sein)</label>
+                  <div className="row"><button type="button" className="primary" onClick={saveAdmin}>Speichern</button>{adm.msg && <span className={adm.msg === 'Gespeichert.' ? 'ok' : 'error'}>{adm.msg}</span>}</div>
+                </>
+              )}
             </>
           )}
           {tab === 'updates' && (

@@ -3,6 +3,7 @@ import { supabase, configured } from './lib/supabase';
 import { bus, dmKey, roomOfMessage } from './lib/bus';
 import { mentionsUser } from './lib/format.jsx';
 import { permsFor, rolesOf, parseInvite } from './lib/perms';
+import { isSurge } from './lib/surge';
 import { sounds } from './lib/sound';
 import { useVoice } from './lib/voice';
 import logo from './assets/logo.png';
@@ -75,6 +76,7 @@ function Main({ userId }) {
   const [serverSettings, setServerSettings] = useState(null); // Tab-Name oder null
   const [draft, setDraft] = useState(null);
   const [toast, setToast] = useState('');
+  const [appSettings, setAppSettings] = useState({});
   const presence = useRef(null);
   const typingCh = useRef(null);
   const live = useRef({});
@@ -94,6 +96,10 @@ function Main({ userId }) {
   const loadChannels = useCallback(async () => {
     const { data } = await supabase.from('channels').select('*').order('created_at').order('name');
     if (data) setChannels(data);
+  }, []);
+  const loadSettings = useCallback(async () => {
+    const { data } = await supabase.from('app_settings').select('*');
+    if (data) setAppSettings(Object.fromEntries(data.map((r) => [r.key, r.value])));
   }, []);
   const loadFriends = useCallback(async () => {
     const { data } = await supabase.from('friendships').select('*');
@@ -130,6 +136,7 @@ function Main({ userId }) {
     loadProfiles();
     loadGuilds();
     loadFriends();
+    loadSettings();
     supabase
       .from('messages').select('user_id,recipient_id').not('dm_key', 'is', null).order('id', { ascending: false }).limit(500)
       .then(({ data }) => setDmIds([...new Set((data || []).map((m) => (m.user_id === userId ? m.recipient_id : m.user_id)))]));
@@ -163,6 +170,7 @@ function Main({ userId }) {
       .on('postgres_changes', ...all('server_members', loadGuilds))
       .on('postgres_changes', ...all('roles', loadGuilds))
       .on('postgres_changes', ...all('member_roles', loadGuilds))
+      .on('postgres_changes', ...all('app_settings', loadSettings))
       .subscribe();
 
     const ty = supabase
@@ -176,7 +184,7 @@ function Main({ userId }) {
       supabase.removeChannel(db);
       supabase.removeChannel(ty);
     };
-  }, [userId, loadProfiles, loadChannels, loadFriends, loadGuilds]);
+  }, [userId, loadProfiles, loadChannels, loadFriends, loadGuilds, loadSettings]);
 
   // Einladungslinks: aus dem Chat angeklickt oder von Windows übergeben (hyco://invite/CODE)
   useEffect(() => {
@@ -343,7 +351,7 @@ function Main({ userId }) {
   const inVoice = (id) => Object.entries(online).filter(([, m]) => m?.voice === id).map(([uid]) => uid);
   const list = (type) => serverChannels.filter((c) => c.type === type);
   const voiceChannel = channels.find((c) => c.id === voice.channelId);
-  const shared = { me, profiles, statusOf, openProfile: setCard };
+  const shared = { me, profiles, statusOf, openProfile: setCard, appSettings, openSurge: () => setSettings('surge') };
   const isMember = (uid) => Boolean(server) && members.some((m) => m.server_id === server.id && m.user_id === uid);
 
   let content = null;
@@ -474,7 +482,7 @@ function Main({ userId }) {
         <div className="userbar">
           <div className="who" onClick={() => setStatusMenu(!statusMenu)}>
             <Avatar profile={me} status={myStatus} size={34} />
-            <span className="grow"><b>{me.username}</b><small className="dim">{me.status || PRESENCE.find(([k]) => k === me.presence)?.[1]}</small></span>
+            <span className="grow"><b>{me.username}{isSurge(me) && <span className="surge" title="Hyco Surge">⚡</span>}</b><small className="dim">{me.status || PRESENCE.find(([k]) => k === me.presence)?.[1]}</small></span>
           </div>
           <button title="Mikrofon" className={voice.muted ? 'icon off' : 'icon'} disabled={!voice.channelId} onClick={voice.toggleMute}>🎙️</button>
           <button title="Deafen" className={voice.deaf ? 'icon off' : 'icon'} disabled={!voice.channelId} onClick={voice.toggleDeaf}>🎧</button>
@@ -499,10 +507,10 @@ function Main({ userId }) {
       {card && (
         <ProfileCard
           id={card} me={me} profiles={profiles} friendRows={friendRows} reloadFriends={loadFriends} statusOf={statusOf} openDM={openDM} onClose={() => setCard(null)}
-          server={view === 'server' ? server : null} roles={roles} memberRoles={memberRoles} can={can} reloadGuilds={loadGuilds} isMember={isMember(card)}
+          server={view === 'server' ? server : null} roles={roles} memberRoles={memberRoles} can={can} reloadGuilds={loadGuilds} isMember={isMember(card)} openSurge={() => { setCard(null); setSettings('surge'); }}
         />
       )}
-      {settings && <Settings me={me} voice={voice} onClose={() => setSettings(false)} />}
+      {settings && <Settings me={me} profiles={profiles} appSettings={appSettings} voice={voice} initialTab={settings === 'surge' ? 'surge' : 'profile'} onClose={() => setSettings(false)} />}
       {serverDialog && <ServerDialog onClose={() => setServerDialog(false)} onJoin={joinServer} onCreated={async (id) => { await loadGuilds(); pickServer(id); }} />}
       {serverSettings && server && (
         <ServerSettings

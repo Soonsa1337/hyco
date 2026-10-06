@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { rolesOf } from '../lib/perms';
+import { isSurge, PERKS } from '../lib/surge';
 import Avatar from './Avatar.jsx';
 import { RoleChips, kick, ban } from './Servers.jsx';
 
@@ -20,7 +21,7 @@ export function Members({ server, profiles, members, roles, memberRoles, statusO
     <div key={p.id} className={dimmed ? 'member off' : 'member'} onClick={() => openProfile(p.id)}>
       <Avatar profile={p} status={statusOf(p.id)} size={32} />
       <span className="grow">
-        <b style={{ color: dimmed ? undefined : top(p.id)?.color || p.accent }}>{p.username}{p.id === server.owner_id && ' 👑'}</b>
+        <b style={{ color: dimmed ? undefined : top(p.id)?.color || p.accent }}>{p.username}{p.id === server.owner_id && ' 👑'}{isSurge(p) && <span className="surge">⚡</span>}</b>
         {voiceOf(p.id) ? <small className="ok">🔊 {voiceOf(p.id)}</small> : p.status && <small className="dim">{p.status}</small>}
       </span>
     </div>
@@ -38,7 +39,7 @@ export function Members({ server, profiles, members, roles, memberRoles, statusO
 }
 
 // Profilkarte beim Klick auf einen Nutzer; im Server-Kontext mit Rollen und Moderation
-export function ProfileCard({ id, me, profiles, friendRows, reloadFriends, statusOf, openDM, onClose, server, roles, memberRoles, can, reloadGuilds, isMember }) {
+export function ProfileCard({ id, me, profiles, friendRows, reloadFriends, statusOf, openDM, onClose, server, roles, memberRoles, can, reloadGuilds, isMember, openSurge }) {
   const p = profiles[id];
   if (!p) return null;
   const st = statusOf(id);
@@ -56,10 +57,12 @@ export function ProfileCard({ id, me, profiles, friendRows, reloadFriends, statu
   return (
     <div className="overlay" onClick={onClose}>
       <div className="profile-card" onClick={(e) => e.stopPropagation()}>
-        <div className="banner" style={{ background: `linear-gradient(135deg, ${p.accent || '#ff7a1a'}, #1b2030)` }} />
+        <div className={isSurge(p) ? 'banner surge-glow' : 'banner'} style={{ background: p.banner_url && isSurge(p) ? `url(${p.banner_url}) center/cover` : `linear-gradient(135deg, ${p.accent || '#ff7a1a'}, #1b2030)` }} />
         <div className="pc-avatar"><Avatar profile={p} status={st} size={84} /></div>
         <div className="pc-body">
-          <h2>{p.username}{server?.owner_id === id && ' 👑'}</h2>
+          <h2>{p.username}{server?.owner_id === id && ' 👑'}{isSurge(p) && <span className="surge big" title="Hyco Surge">⚡</span>}</h2>
+          {isSurge(p) && <p className="surge-tag">Hyco Surge-Mitglied{p.surge_until ? ` · bis ${new Date(p.surge_until).toLocaleDateString('de-DE')}` : ''}</p>}
+          {id === me.id && !isSurge(p) && openSurge && <a className="small" onClick={openSurge}>⚡ Hyco Surge holen</a>}
           <p className="dim">{p.status || STATUS_TEXT[st]}</p>
           <div className="pc-box">
             <h4>Über mich</h4>

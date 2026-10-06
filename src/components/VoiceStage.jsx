@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QUALITIES, CODECS } from '../lib/voice';
 import { appAudioStatus } from '../lib/appAudio';
+import { isSurge, SURGE_QUALITIES } from '../lib/surge';
 import Avatar from './Avatar.jsx';
 
 // Eine Stream- oder Kamera-Kachel mit Live-Statistik, Stream-Lautstärke und Vollbild
@@ -138,6 +139,7 @@ function SharePicker({ live, me, onStart, onClose }) {
   };
   const shown = sources.filter((s) => s.id.startsWith(kind));
   const q = QUALITIES[quality];
+  useEffect(() => { if (SURGE_QUALITIES.has(quality) && !isSurge(me)) setQuality('1080p60'); }, [me, quality]);
   const isWindow = /^window:/.test(sourceId || '');
 
   return (
@@ -160,7 +162,7 @@ function SharePicker({ live, me, onStart, onClose }) {
           <div>
             <label>Auflösung & Bildrate</label>
             <select value={quality} onChange={(e) => setQuality(e.target.value)}>
-              {Object.entries(QUALITIES).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}
+              {Object.entries(QUALITIES).map(([k, x]) => <option key={k} value={k} disabled={SURGE_QUALITIES.has(k) && !isSurge(me)}>{x.label}{SURGE_QUALITIES.has(k) ? ' ⚡' : ''}</option>)}
             </select>
           </div>
           <div>

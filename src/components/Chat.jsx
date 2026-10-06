@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { bus, roomOfMessage } from '../lib/bus';
 import { renderContent, mentionsUser, isImage } from '../lib/format.jsx';
 import Avatar from './Avatar.jsx';
+import { isSurge, uploadLimit, PERKS } from '../lib/surge';
 
 const QUICK = ['👍', '❤️', '😂', '🔥', '😮', '😢'];
 const EMOJI = '😀 😂 🤣 😊 😍 😎 🤔 😴 😭 😡 🥳 🤯 😱 🙄 😏 😇 🫡 🫠 🤡 💀 👀 👍 👎 👏 🙏 💪 🤝 🤌 ❤️ 🔥 💯 ✅ ❌ ⭐ ✨ ⚡ 🎉 🏆 🎮 🎧 🎵 🍕 🍺 ☕ 🚀 💩'.split(' ');
@@ -19,7 +20,7 @@ function EmojiPicker({ onPick }) {
 }
 
 // room: { key, kind: 'channel' | 'dm', id?, dmKey?, partnerId?, title, topic }
-export default function Chat({ room, me, profiles, typing, sendTyping, statusOf, openProfile, can = { send: true, attach: true, manage: false }, colorOf = () => undefined }) {
+export default function Chat({ room, me, profiles, typing, sendTyping, statusOf, openProfile, appSettings = {}, openSurge = () => {}, can = { send: true, attach: true, manage: false }, colorOf = () => undefined }) {
   const [messages, setMessages] = useState([]);
   const [reactions, setReactions] = useState({});
   const [text, setText] = useState('');
@@ -34,6 +35,7 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
   const [lightbox, setLightbox] = useState(null); // großes Bild intern anzeigen
   const [mention, setMention] = useState(null); // { query, index } während man @name tippt
   const [fresh, setFresh] = useState(0); // neue Nachrichten, während man hochgescrollt hat
+  const [gif, setGif] = useState(null); // { q, results, loading } für die GIF-Suche
   const [, tick] = useState(0);
   const box = useRef(null);
   const input = useRef(null);
@@ -191,7 +193,8 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
   const upload = async (f) => {
     if (!f) return;
     setError('');
-    if (f.size > 8 * 1024 * 1024) return setError('Anhänge dürfen max. 8 MB groß sein.');
+    const limit = uploadLimit(me);
+    if (f.size > limit) return setError(`Anhänge dürfen max. ${limit / 1024 / 1024} MB groß sein${isSurge(me) ? '' : ' – mit Hyco Surge bis 25 MB'}.`);
     setBusy(true);
     const path = `${me.id}/${Date.now()}-${f.name.replace(/[^\w.]/g, '_')}`;
     const { error: err } = await supabase.storage.from('attachments').upload(path, f);
@@ -252,6 +255,28 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
     const mine = (reactions[m.id] || []).some((r) => r.user_id === me.id && r.emoji === emoji);
     if (mine) await supabase.from('reactions').delete().match({ message_id: m.id, user_id: me.id, emoji });
     else await supabase.from('reactions').insert({ message_id: m.id, user_id: me.id, emoji });
+  };
+
+  // GIF-Suche (Tenor) – Surge-Vorteil
+  const searchGifs = async (q) => {
+    const key = appSettings.tenor_key;
+    if (!key) return setGif({ q, results: [], loading: false, error: 'GIF-Suche ist noch nicht eingerichtet (Tenor-Key fehlt).' });
+    setGif((g) => ({ ...(g || {}), q, loading: true, error: '' }));
+    try {
+      const url = q.trim()
+        ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${key}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`
+        : `https://tenor.googleapis.com/v2/featured?key=${key}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setGif({ q, loading: false, error: '', results: (data.results || []).map((r) => ({ id: r.id, preview: r.media_formats.tinygif?.url, url: r.media_formats.gif?.url })).filter((r) => r.url) });
+    } catch (e) {
+      setGif({ q, loading: false, results: [], error: 'GIF-Suche fehlgeschlagen.' });
+    }
+  };
+  const sendGif = async (url) => {
+    setGif(null);
+    await insert({ content: text.trim(), attachment_url: url });
+    setText('');
   };
 
   const togglePins = async () => {
@@ -322,6 +347,7 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
                   {!grouped && (
                     <div className="meta">
                       <b className="author" style={{ color: colorOf(m.user_id) || p?.accent }} onClick={() => openProfile(m.user_id)}>{p?.username || 'Unbekannt'}</b>
+                      {isSurge(p) && <span className="surge" title="Hyco Surge">⚡</span>}
                       <span className="dim time">{timeLabel(m.created_at)}</span>
                       {m.pinned && <span className="time">📌</span>}
                     </div>
@@ -383,9 +409,26 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
             onChange={onInput} onKeyDown={onKey}
             onPaste={(e) => { const f = [...e.clipboardData.files][0]; if (f && can.attach) { e.preventDefault(); upload(f); } }}
           />
+          {can.attach && (
+            <button className={isSurge(me) ? 'icon gifbtn' : 'icon gifbtn locked'} title={isSurge(me) ? 'GIF suchen' : 'GIF-Suche – mit Hyco Surge'} onClick={(e) => { e.stopPropagation(); if (!isSurge(me)) return openSurge(); if (gif) setGif(null); else searchGifs(''); }}>GIF</button>
+          )}
           <button className="icon" title="Emoji" onClick={(e) => { e.stopPropagation(); setPicker(picker === 'composer' ? null : 'composer'); }}>😊</button>
           {picker === 'composer' && <EmojiPicker onPick={(e) => { setText((t) => t + e); input.current?.focus(); }} />}
         </div>
+        {gif && (
+          <div className="popover gifs" onClick={(e) => e.stopPropagation()}>
+            <div className="row">
+              <input autoFocus placeholder="GIFs suchen…" value={gif.q} onChange={(e) => searchGifs(e.target.value)} />
+              <button className="icon" onClick={() => setGif(null)}>✕</button>
+            </div>
+            {gif.error && <p className="error small">{gif.error}</p>}
+            <div className="gif-grid">
+              {gif.results?.map((r) => <img key={r.id} src={r.preview} alt="" loading="lazy" onClick={() => sendGif(r.url)} />)}
+            </div>
+            {gif.loading && <p className="dim small">Lade…</p>}
+            <p className="dim small" style={{ margin: 0 }}>Powered by Tenor</p>
+          </div>
+        )}
         <div className="typing">{typers.length > 0 && <><span className="dots"><i /><i /><i /></span> <b>{typers.join(', ')}</b> {typers.length === 1 ? 'schreibt' : 'schreiben'}…</>}</div>
       </div>
 

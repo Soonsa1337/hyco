@@ -29,7 +29,7 @@ Voraussetzung: Node.js 20+ (https://nodejs.org).
 
 ### 1. Supabase
 1. Auf https://supabase.com ein Projekt anlegen (Free-Tarif reicht).
-2. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → Run. Danach genauso `supabase/migration-002.sql` (Direktnachrichten, Reaktionen, Pins, Anhänge, Status) `supabase/migration-003.sql` (Updates über den Client, Admin-Kennzeichen) und `supabase/migration-004.sql` (eigene Server, Einladungen, Rollen, Rechte) ausführen.
+2. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → Run. Danach genauso `supabase/migration-002.sql` (Direktnachrichten, Reaktionen, Pins, Anhänge, Status) `supabase/migration-003.sql` (Updates über den Client, Admin-Kennzeichen) `supabase/migration-004.sql` (eigene Server, Einladungen, Rollen, Rechte) und `supabase/migration-005.sql` (Hyco Surge) ausführen.
 3. **Authentication → Sign In / Providers → Email**: „Confirm email" ausschalten (sonst muss jeder Freund erst eine Mail bestätigen).
 4. **Project Settings → API**: `Project URL` und `anon public` Key notieren.
 
@@ -75,3 +75,13 @@ Die Datei ist nicht signiert: Windows SmartScreen zeigt „Weitere Informationen
 Jeder Push auf `main` baut per GitHub Actions den Windows-Installer und veröffentlicht ihn als Release (`v<Version aus package.json>`).
 Die App prüft alle 15 Minuten die GitHub-Releases; bei einer neueren Version erscheint der ⬇-Knopf, ein Klick lädt, prüft die Prüfsumme (sofern GitHub sie liefert), installiert still und startet neu.
 Vorgehen für eine neue Version: `version` in `package.json` erhöhen, committen, pushen – fertig.
+
+## Hyco Surge (Premium)
+- Vorteile: ⚡-Abzeichen, animierte Avatare, Profilbanner, freie Profilfarbe, GIF-Suche, Uploads bis 25 MB, Streams in 1440p/4K.
+- **Vergabe durch den Admin:** Einstellungen → ⚡ Hyco Surge → „Surge vergeben" (Nutzer + Laufzeit). Ebenso Entziehen.
+- **GIF-Suche:** braucht einen kostenlosen Tenor-API-Key (Google Cloud → Tenor API); in Einstellungen → Hyco Surge eintragen.
+- **Bezahlung über Stripe (optional):** Stripe-Konto anlegen, ein Abo-Produkt mit Preis erstellen, dann
+  `supabase secrets set STRIPE_SECRET_KEY=sk_… STRIPE_PRICE_ID=price_… STRIPE_WEBHOOK_SECRET=whsec_…`,
+  die Funktionen `surge-checkout` und `stripe-webhook` deployen (bei `stripe-webhook` „Verify JWT" ausschalten),
+  in Stripe den Webhook auf `https://<projekt>.supabase.co/functions/v1/stripe-webhook` mit den Events `invoice.paid` und `customer.subscription.deleted` anlegen
+  und in Hyco „Bezahlung über Stripe anbieten" einschalten. Hinweis: Wer Abos verkauft, braucht Impressum, AGB und Widerrufsbelehrung.

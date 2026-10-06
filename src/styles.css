@@ -243,3 +243,15 @@ select.role-add { width: auto; padding: 1px 6px; font-size: 12px; border-radius:
 .mentions { left: 16px; right: 16px; bottom: calc(100% - 20px); max-height: 240px; overflow-y: auto; }
 .mentions .channel { gap: 10px; }
 .meter { height: 10px; border-radius: 6px; background: var(--bg0); overflow: hidden; } .meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--yellow) 70%, var(--red)); transition: width .06s; }
+
+/* ---------- Hyco Surge ---------- */
+.surge { margin-left: 5px; font-size: .85em; color: #ffd166; filter: drop-shadow(0 0 6px #ffb703aa); } .surge.big { font-size: .8em; }
+.surge-tag { color: #ffd166; font-size: 12px; font-weight: 600; }
+.surge-glow { box-shadow: inset 0 0 0 2px #ffd16666, 0 0 24px -4px #ffb70388; }
+.surge-hero { padding: 20px; border-radius: 14px; background: linear-gradient(135deg, #ffb70333, #ff3d6e22), var(--bg1); border: 1px solid #ffd16644; }
+.surge-hero h2 { color: #ffd166; } .surge-hero p { margin-top: 4px; }
+.perks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .perk { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg1); } .perk span { font-size: 18px; }
+.gifbtn { font-size: 12px; font-weight: 800; letter-spacing: .04em; border: 1px solid var(--line); } .gifbtn.locked { opacity: .55; }
+.gifs { left: 16px; right: 16px; bottom: calc(100% - 20px); max-height: 420px; display: flex; flex-direction: column; gap: 8px; }
+.gif-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; overflow-y: auto; } .gif-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; } .gif-grid img:hover { outline: 2px solid var(--accent); }
+.avatar img { object-fit: cover; }
