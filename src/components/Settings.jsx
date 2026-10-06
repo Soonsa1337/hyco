@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, inviteCode } from '../lib/supabase';
 import Avatar from './Avatar.jsx';
-import { publishUpdate } from '../lib/update';
 import { bus } from '../lib/bus';
 
 export const THEMES = { ember: 'Ember', blurple: 'Blurple', mint: 'Mint', sakura: 'Sakura', cyber: 'Cyber' };
@@ -23,29 +22,11 @@ export default function Settings({ me, voice, onClose }) {
   const [notify, setNotify] = useState(localStorage.getItem('notify') !== 'off');
   const [msg, setMsg] = useState('');
   const [appVersion, setAppVersion] = useState('');
-  const [rel, setRel] = useState({ file: null, version: '', notes: '', progress: null, done: '' });
+  const [rel, setRel] = useState({ done: '' });
 
   useEffect(() => {
     window.desktop?.version?.().then(setAppVersion);
   }, []);
-
-  const pickRelease = (e) => {
-    const file = e.target.files[0];
-    const version = file?.name.match(/(\d+\.\d+\.\d+)/)?.[1] || '';
-    setRel({ ...rel, file, version, done: '' });
-  };
-  const publish = async () => {
-    setMsg('');
-    if (!rel.file || !/^\d+\.\d+\.\d+$/.test(rel.version)) return setMsg('Bitte Installer wählen und Version im Format 1.2.3 angeben.');
-    try {
-      setRel((r) => ({ ...r, progress: 0 }));
-      await publishUpdate(rel.file, rel.version, rel.notes.trim(), (p) => setRel((r) => ({ ...r, progress: p })));
-      setRel((r) => ({ ...r, progress: null, done: `Version ${r.version} ist freigegeben.` }));
-    } catch (err) {
-      setRel((r) => ({ ...r, progress: null }));
-      setMsg(err.message);
-    }
-  };
 
   useEffect(() => {
     // Einmal Mikrofonzugriff anfragen, sonst liefert enumerateDevices keine Namen
@@ -184,20 +165,7 @@ export default function Settings({ me, voice, onClose }) {
               <h2>Updates</h2>
               <p>Installierte Version: <b>{appVersion || '–'}</b></p>
               <div className="row"><button type="button" onClick={() => { bus.emit('check-update'); setMsg(''); setRel({ ...rel, done: 'Suche läuft – wenn es ein Update gibt, erscheint unten links in der Leiste ein ⬇-Knopf.' }); }}>Nach Updates suchen</button></div>
-              {me.is_admin && (
-                <>
-                  <h2>Update freigeben (Admin)</h2>
-                  <p className="dim small" style={{ margin: 0 }}>Wähle die neue „Hyco Setup x.y.z.exe". Sie wird hochgeladen und allen Nutzern per Knopf in der App angeboten.</p>
-                  <input type="file" accept=".exe" onChange={pickRelease} />
-                  <label>Version</label>
-                  <input value={rel.version} placeholder="1.3.0" onChange={(e) => setRel({ ...rel, version: e.target.value })} />
-                  <label>Was ist neu? (optional)</label>
-                  <textarea rows={3} maxLength={500} value={rel.notes} onChange={(e) => setRel({ ...rel, notes: e.target.value })} />
-                  {rel.progress !== null
-                    ? <><div className="progress"><i style={{ width: `${rel.progress}%` }} /></div><p className="dim small" style={{ margin: 0 }}>Lade hoch… {rel.progress} %</p></>
-                    : <div className="row"><button type="button" className="primary" onClick={publish}>Hochladen & freigeben</button></div>}
-                </>
-              )}
+              <p className="dim small" style={{ margin: 0 }}>Neue Versionen werden automatisch von GitHub geladen und per ⬇-Knopf angeboten. Alle Versionen: github.com/Soonsa1337/hyco/releases</p>
               {rel.done && <p className="ok">{rel.done}</p>}
             </>
           )}

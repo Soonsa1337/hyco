@@ -72,15 +72,6 @@ Die Datei ist nicht signiert: Windows SmartScreen zeigt „Weitere Informationen
 - Jeder eingeloggte Nutzer darf Kanäle anlegen; Löschen geht nur im Supabase-Dashboard.
 
 ## Updates verteilen
-1. Version in `package.json` erhöhen und `npm run dist:win` ausführen.
-2. Die neue Version selbst installieren und testen.
-3. In Hyco: Einstellungen → Updates → „Update freigeben (Admin)" → die neue `Hyco Setup x.y.z.exe` wählen → „Hochladen & freigeben".
-4. Alle Nutzer sehen innerhalb von 15 Minuten (oder nach Neustart) unten in der linken Leiste einen grünen ⬇-Knopf; ein Klick lädt das Update, prüft die SHA-256-Prüfsumme, installiert still und startet Hyco neu.
-
-Die Dateien liegen im öffentlichen Supabase-Bucket `updates` (in 40-MB-Teilen, weil der Free-Tarif 50 MB pro Datei erlaubt). Hochladen dürfen nur Profile mit `is_admin = true`.
-
-## Server, Rollen und Rechte
-- Jeder Nutzer kann Server erstellen (linke Leiste → „+") oder per Einladungslink `hyco://invite/CODE` beitreten. Der Link öffnet Hyco direkt; im Chat erscheint er als Knopf.
-- Rechte kommen aus der Rolle `@everyone` plus den vergebenen Rollen; der Besitzer darf alles. Durchgesetzt wird das in der Datenbank (`has_perm`), nicht nur in der Oberfläche.
-- Servereinstellungen: Übersicht, Rollen, Mitglieder (Rollen vergeben, kicken, bannen), Einladungen (Ablauf, max. Nutzungen), Bans.
-- Es gibt keine Rollen-Hierarchie: Wer „Rollen verwalten" hat, kann jede Rolle vergeben und ändern – also auch sich selbst Administrator geben. Dieses Recht nur an vertraute Personen vergeben.
+Jeder Push auf `main` baut per GitHub Actions den Windows-Installer und veröffentlicht ihn als Release (`v<Version aus package.json>`).
+Die App prüft alle 15 Minuten die GitHub-Releases; bei einer neueren Version erscheint der ⬇-Knopf, ein Klick lädt, prüft die Prüfsumme (sofern GitHub sie liefert), installiert still und startet neu.
+Vorgehen für eine neue Version: `version` in `package.json` erhöhen, committen, pushen – fertig.

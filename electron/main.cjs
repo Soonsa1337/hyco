@@ -138,7 +138,7 @@ app.whenReady().then(async () => {
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Ungültige Versionsnummer.');
     for (const u of urls) {
       const { protocol, hostname } = new URL(u);
-      if (protocol !== 'https:' || !hostname.endsWith('.supabase.co')) throw new Error('Unerlaubte Update-Quelle.');
+      if (protocol !== 'https:' || !/^(github\.com|objects\.githubusercontent\.com|.*\.supabase\.co)$/.test(hostname)) throw new Error('Unerlaubte Update-Quelle.');
     }
     const file = path.join(app.getPath('temp'), `Hyco-Setup-${version}.exe`);
     const out = fs.createWriteStream(file);
@@ -154,7 +154,7 @@ app.whenReady().then(async () => {
       event.sender.send('update:progress', Math.round((done / urls.length) * 99));
     }
     await new Promise((resolve) => out.end(resolve));
-    if (hash.digest('hex') !== sha256) {
+    if (sha256 && hash.digest('hex') !== sha256) {
       fs.rmSync(file, { force: true });
       throw new Error('Prüfsumme stimmt nicht – Update abgebrochen.');
     }
