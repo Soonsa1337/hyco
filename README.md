@@ -79,7 +79,7 @@ Vorgehen für eine neue Version: `version` in `package.json` erhöhen, committen
 ## Hyco Surge (Premium)
 - Vorteile: ⚡-Abzeichen, animierte Avatare, Profilbanner, freie Profilfarbe, GIF-Suche, Uploads bis 25 MB, Streams in 1440p/4K.
 - **Vergabe durch den Admin:** Einstellungen → ⚡ Hyco Surge → „Surge vergeben" (Nutzer + Laufzeit). Ebenso Entziehen.
-- **GIF-Suche:** braucht einen kostenlosen Tenor-API-Key (Google Cloud → Tenor API); in Einstellungen → Hyco Surge eintragen.
+- **GIF-Suche:** braucht einen kostenlosen KLIPY-API-Key (https://partner.klipy.com/api-keys; KLIPY ist Tenor-kompatibel, Tenor wurde am 30.06.2026 abgeschaltet). In Einstellungen → Hyco Surge eintragen.
 - **Bezahlung über Stripe (optional):** Stripe-Konto anlegen, ein Abo-Produkt mit Preis erstellen, dann
   `supabase secrets set STRIPE_SECRET_KEY=sk_… STRIPE_PRICE_ID=price_… STRIPE_WEBHOOK_SECRET=whsec_…`,
   die Funktionen `surge-checkout` und `stripe-webhook` deployen (bei `stripe-webhook` „Verify JWT" ausschalten),

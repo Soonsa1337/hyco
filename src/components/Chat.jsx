@@ -257,20 +257,28 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
     else await supabase.from('reactions').insert({ message_id: m.id, user_id: me.id, emoji });
   };
 
-  // GIF-Suche (Tenor) – Surge-Vorteil
+  // GIF-Suche über KLIPY (Tenor-kompatible Schnittstelle; Tenor selbst wurde 2026 abgeschaltet) – Surge-Vorteil
   const searchGifs = async (q) => {
     const key = appSettings.tenor_key;
-    if (!key) return setGif({ q, results: [], loading: false, error: 'GIF-Suche ist noch nicht eingerichtet (Tenor-Key fehlt).' });
+    if (!key) return setGif({ q, results: [], loading: false, error: 'GIF-Suche ist noch nicht eingerichtet (KLIPY-Key fehlt, siehe Einstellungen → Hyco Surge).' });
     setGif((g) => ({ ...(g || {}), q, loading: true, error: '' }));
     try {
-      const url = q.trim()
-        ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${key}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`
-        : `https://tenor.googleapis.com/v2/featured?key=${key}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`;
+      const base = (appSettings.gif_api_base || 'https://api.klipy.com').replace(/\/$/, '');
+      const params = `key=${encodeURIComponent(key)}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`;
+      const url = q.trim() ? `${base}/v2/search?q=${encodeURIComponent(q)}&${params}` : `${base}/v2/featured?${params}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setGif({ q, loading: false, error: '', results: (data.results || []).map((r) => ({ id: r.id, preview: r.media_formats.tinygif?.url, url: r.media_formats.gif?.url })).filter((r) => r.url) });
+      const list = data.results || data.data || [];
+      const pick = (r) => {
+        const f = r.media_formats || r.media || r.file || {};
+        const gifUrl = f.gif?.url || f.gif?.gif?.url || f.md?.gif?.url || f.hd?.gif?.url || r.url;
+        const tiny = f.tinygif?.url || f.nanogif?.url || f.sm?.gif?.url || f.xs?.gif?.url || gifUrl;
+        return { id: r.id || gifUrl, preview: tiny, url: gifUrl };
+      };
+      setGif({ q, loading: false, error: '', results: list.map(pick).filter((r) => r.url) });
     } catch (e) {
-      setGif({ q, loading: false, results: [], error: 'GIF-Suche fehlgeschlagen.' });
+      setGif({ q, loading: false, results: [], error: `GIF-Suche fehlgeschlagen (${e.message}). Key und Anbieter in den Einstellungen prüfen.` });
     }
   };
   const sendGif = async (url) => {
@@ -426,7 +434,7 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
               {gif.results?.map((r) => <img key={r.id} src={r.preview} alt="" loading="lazy" onClick={() => sendGif(r.url)} />)}
             </div>
             {gif.loading && <p className="dim small">Lade…</p>}
-            <p className="dim small" style={{ margin: 0 }}>Powered by Tenor</p>
+            <p className="dim small" style={{ margin: 0 }}>Powered by KLIPY</p>
           </div>
         )}
         <div className="typing">{typers.length > 0 && <><span className="dots"><i /><i /><i /></span> <b>{typers.join(', ')}</b> {typers.length === 1 ? 'schreibt' : 'schreiben'}…</>}</div>

@@ -283,7 +283,7 @@ export default function Settings({ me, profiles = {}, appSettings = {}, voice, i
                   <h2>Surge-Einstellungen (Admin)</h2>
                   <label>Hinweistext für Nutzer ohne Surge</label>
                   <input value={adm.surge_info} maxLength={200} onChange={(e) => setAdm({ ...adm, surge_info: e.target.value })} />
-                  <label>Tenor-API-Key (für die GIF-Suche, kostenlos unter developers.google.com/tenor)</label>
+                  <label>KLIPY-API-Key für die GIF-Suche (kostenlos unter partner.klipy.com/api-keys – Tenor wurde 2026 abgeschaltet)</label>
                   <input value={adm.tenor_key} onChange={(e) => setAdm({ ...adm, tenor_key: e.target.value })} />
                   <label className="row check"><input type="checkbox" checked={adm.stripe_enabled} onChange={(e) => setAdm({ ...adm, stripe_enabled: e.target.checked })} />Bezahlung über Stripe anbieten (Funktionen müssen eingerichtet sein)</label>
                   <div className="row"><button type="button" className="primary" onClick={saveAdmin}>Speichern</button>{adm.msg && <span className={adm.msg === 'Gespeichert.' ? 'ok' : 'error'}>{adm.msg}</span>}</div>
