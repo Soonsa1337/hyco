@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { callFunction, config } from './supabase';
 import { sounds, setUiSilent } from './sound';
-import { createAppAudioTrack } from './appAudio';
+import { createAppAudioTrack, appAudioAvailable } from './appAudio';
 
 // Bitraten liegen bewusst deutlich über dem, was Discord sendet (1080p60 dort ca. 8 Mbit/s)
 export const QUALITIES = {
@@ -276,13 +276,16 @@ export function useVoice() {
   };
 
   // Bildschirm/Fenster übertragen. Läuft schon ein Stream, wird er mit den neuen Einstellungen ersetzt.
-  // audioMode: 'app' = nur die Anwendung bzw. alles außer Hyco (native Komponente), 'system' = kompletter System-Ton, 'off' = ohne Ton
-  const startShare = async ({ sourceId, audio, audioMode = audio ? 'system' : 'off', appPid = 0, quality, codec = 'h264', mode = 'motion', overlay }) => {
+  // audioMode: 'all' = alles außer Hyco, 'app' = nur eine Anwendung (Fenster bzw. gewählte App), 'off' = ohne Ton.
+  // Hyco selbst wird immer ausgeschlossen (native Komponente); nur ohne sie bleibt der komplette System-Ton als Rückfall.
+  const startShare = async ({ sourceId, audio, audioMode = audio ? 'all' : 'off', appPid = 0, quality, codec = 'h264', mode = 'motion', overlay }) => {
     const room = roomRef.current;
     if (!room) return;
     if (shareTracks.current.length) await stopShare();
     const q = QUALITIES[quality];
-    const systemAudio = audioMode === 'system';
+    if (audioMode === 'system') audioMode = 'all';
+    const native = audioMode !== 'off' && (await appAudioAvailable());
+    const systemAudio = audioMode !== 'off' && !native;
     await window.desktop?.pick({ id: sourceId, audio: systemAudio });
     const size = q.w ? { width: { ideal: q.w, max: q.w }, height: { ideal: q.h, max: q.h } } : {};
     const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -326,11 +329,12 @@ export function useVoice() {
     // Bildschirm-Stream -> gewählte Anwendung oder alles außer Hyco (kein Echo der anderen Stimmen)
     let sound = stream.getAudioTracks()[0];
     let appAudioError = '';
-    if (audioMode === 'app') {
+    if (native) {
       try {
         const isWindow = /^window:/.test(sourceId || '');
         const windowId = isWindow ? Number((sourceId.split(':')[1] || '0')) : 0;
-        const opts = appPid ? { mode: 'include', pid: appPid } : isWindow && windowId ? { mode: 'include', windowId } : { mode: 'exclude' };
+        const only = audioMode === 'app';
+        const opts = only && appPid ? { mode: 'include', pid: appPid } : only && isWindow && windowId ? { mode: 'include', windowId } : { mode: 'exclude' };
         const r = await createAppAudioTrack(opts);
         sound = r.track;
         ex.stop = r.stop;

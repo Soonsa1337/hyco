@@ -222,3 +222,13 @@ select.role-add { width: auto; padding: 1px 6px; font-size: 12px; border-radius:
 .lightbox img { max-width: 92vw; max-height: 84vh; border-radius: 12px; box-shadow: 0 30px 80px -20px #000; cursor: default; }
 .lightbox-bar { display: flex; align-items: center; gap: 14px; }
 .lightbox-bar a { color: var(--fg); }
+
+/* ---------- Dialoge: nichts mehr zusammenquetschen, stattdessen scrollen; schmale Fenster ---------- */
+.card > * { flex: none; }
+.card, .card.wide { width: min(580px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.card:not(.wide) { width: min(400px, calc(100vw - 32px)); }
+.sources { min-height: 96px; max-height: min(300px, 38vh); }
+.source img { aspect-ratio: 16 / 9; object-fit: cover; background: #000; }
+.settings, .settings.wide { width: min(900px, calc(100vw - 32px)); height: min(640px, calc(100vh - 32px)); }
+.settings nav { flex: none; }
+@media (max-width: 760px) { .sources { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .settings nav { width: 150px; } }

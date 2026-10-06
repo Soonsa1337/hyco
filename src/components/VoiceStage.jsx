@@ -75,7 +75,7 @@ function SharePicker({ live, onStart, onClose }) {
   const [sources, setSources] = useState([]);
   const [sourceId, setSourceId] = useState(null);
   const [kind, setKind] = useState('screen');
-  const [audioMode, setAudioMode] = useState(localStorage.getItem('audioMode') || 'app');
+  const [audioMode, setAudioMode] = useState({ all: 'all', app: 'app', off: 'off' }[localStorage.getItem('audioMode')] || 'all');
   const [appOk, setAppOk] = useState(false);
   const [apps, setApps] = useState([]);
   const [appPid, setAppPid] = useState(0);
@@ -98,7 +98,6 @@ function SharePicker({ live, onStart, onClose }) {
     appAudioAvailable().then((ok) => {
       setAppOk(ok);
       if (ok) window.desktop.appAudio.apps().then(setApps).catch(() => {});
-      else setAudioMode((m) => (m === 'app' ? 'system' : m));
     });
   }, []);
 
@@ -155,21 +154,18 @@ function SharePicker({ live, onStart, onClose }) {
         </select>
         <label>Ton</label>
         <select value={audioMode} onChange={(e) => setAudioMode(e.target.value)}>
-          {appOk && <option value="app">{isWindow ? 'Nur diese Anwendung (empfohlen)' : 'Nur Anwendung / alles außer Hyco (empfohlen)'}</option>}
-          <option value="system">Gesamter System-Ton (inkl. Hyco)</option>
+          <option value="all">{appOk ? 'Alles außer Hyco' : 'System-Ton'}{isWindow ? '' : ' (Standard)'}</option>
+          {appOk && <option value="app">{isWindow ? 'Nur diese Anwendung (Standard)' : 'Nur eine bestimmte Anwendung'}</option>}
           <option value="off">Kein Ton</option>
         </select>
-        {audioMode === 'app' && !isWindow && (
-          <>
-            <label>Welche Anwendung?</label>
-            <select value={appPid} onChange={(e) => setAppPid(e.target.value)}>
-              <option value={0}>Alles außer Hyco (kein Echo der anderen)</option>
-              {apps.map((a) => <option key={a.pid} value={a.pid}>{a.name}{a.active ? ' · spielt gerade' : ''}</option>)}
-            </select>
-          </>
+        {appOk && audioMode === 'app' && !isWindow && (
+          <select value={appPid} onChange={(e) => setAppPid(e.target.value)}>
+            <option value={0}>Anwendung wählen…</option>
+            {apps.map((a) => <option key={a.pid} value={a.pid}>{a.name}{a.active ? ' · spielt gerade' : ''}</option>)}
+          </select>
         )}
-        {audioMode === 'app' && <p className="dim small">Stimmen aus Hyco und Hinweistöne sind garantiert nicht im Stream. Stereo, 48 kHz, 256 kbit/s.</p>}
-        {!appOk && <p className="dim small">App-genauer Ton braucht Windows 10 (2004) oder neuer. Auf diesem System steht nur der komplette System-Ton zur Verfügung.</p>}
+        {appOk && audioMode !== 'off' && <p className="dim small">Hyco selbst ist nie im Stream – weder die Stimmen der anderen noch Hinweistöne. Keine Rückkopplung.</p>}
+        {!appOk && audioMode !== 'off' && <p className="dim small">Auf diesem System ist nur der komplette System-Ton möglich (inklusive Hyco). Für die Hyco-Ausnahme braucht es Windows 10 Version 2004 oder neuer.</p>}
 
         <h3 className="studio-head">🎬 Studio</h3>
         <label className="row check">
