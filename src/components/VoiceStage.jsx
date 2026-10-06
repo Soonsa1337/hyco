@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { QUALITIES, CODECS } from '../lib/voice';
+import { appAudioAvailable } from '../lib/appAudio';
 import Avatar from './Avatar.jsx';
 
 // Eine Stream- oder Kamera-Kachel mit Live-Statistik, Stream-Lautstärke und Vollbild
@@ -74,7 +75,10 @@ function SharePicker({ live, onStart, onClose }) {
   const [sources, setSources] = useState([]);
   const [sourceId, setSourceId] = useState(null);
   const [kind, setKind] = useState('screen');
-  const [audio, setAudio] = useState(localStorage.getItem('shareAudio') !== 'off');
+  const [audioMode, setAudioMode] = useState(localStorage.getItem('audioMode') || 'app');
+  const [appOk, setAppOk] = useState(false);
+  const [apps, setApps] = useState([]);
+  const [appPid, setAppPid] = useState(0);
   const [quality, setQuality] = useState(QUALITIES[localStorage.getItem('quality')] ? localStorage.getItem('quality') : '1080p60');
   const [codec, setCodec] = useState(localStorage.getItem('codec') || 'h264');
   const [mode, setMode] = useState(localStorage.getItem('shareMode') || 'motion');
@@ -91,22 +95,28 @@ function SharePicker({ live, onStart, onClose }) {
       setSourceId(s.find((x) => x.id.startsWith('screen'))?.id || s[0]?.id);
     });
     navigator.mediaDevices.enumerateDevices().then((d) => setCams(d.filter((x) => x.kind === 'videoinput')));
+    appAudioAvailable().then((ok) => {
+      setAppOk(ok);
+      if (ok) window.desktop.appAudio.apps().then(setApps).catch(() => {});
+      else setAudioMode((m) => (m === 'app' ? 'system' : m));
+    });
   }, []);
 
   const start = () => {
     localStorage.setItem('quality', quality);
     localStorage.setItem('codec', codec);
     localStorage.setItem('shareMode', mode);
-    localStorage.setItem('shareAudio', audio ? 'on' : 'off');
+    localStorage.setItem('audioMode', audioMode);
     localStorage.setItem('facecam', facecam ? 'on' : 'off');
     localStorage.setItem('camPos', camPos);
     localStorage.setItem('camSize', camSize);
     localStorage.setItem('camId', camId);
     localStorage.setItem('streamLabel', label);
-    onStart({ sourceId, audio, quality, codec, mode, overlay: { cam: facecam, camId, camPos, camSize, label: label.trim() } });
+    onStart({ sourceId, audioMode, appPid: Number(appPid) || 0, quality, codec, mode, overlay: { cam: facecam, camId, camPos, camSize, label: label.trim() } });
   };
   const shown = sources.filter((s) => s.id.startsWith(kind));
   const q = QUALITIES[quality];
+  const isWindow = /^window:/.test(sourceId || '');
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -143,10 +153,23 @@ function SharePicker({ live, onStart, onClose }) {
         <select value={codec} onChange={(e) => setCodec(e.target.value)}>
           {Object.entries(CODECS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
-        <label className="row check">
-          <input type="checkbox" checked={audio} onChange={(e) => setAudio(e.target.checked)} />
-          Stream mit Ton (System-Audio, Stereo, 256 kbit/s)
-        </label>
+        <label>Ton</label>
+        <select value={audioMode} onChange={(e) => setAudioMode(e.target.value)}>
+          {appOk && <option value="app">{isWindow ? 'Nur diese Anwendung (empfohlen)' : 'Nur Anwendung / alles außer Hyco (empfohlen)'}</option>}
+          <option value="system">Gesamter System-Ton (inkl. Hyco)</option>
+          <option value="off">Kein Ton</option>
+        </select>
+        {audioMode === 'app' && !isWindow && (
+          <>
+            <label>Welche Anwendung?</label>
+            <select value={appPid} onChange={(e) => setAppPid(e.target.value)}>
+              <option value={0}>Alles außer Hyco (kein Echo der anderen)</option>
+              {apps.map((a) => <option key={a.pid} value={a.pid}>{a.name}{a.active ? ' · spielt gerade' : ''}</option>)}
+            </select>
+          </>
+        )}
+        {audioMode === 'app' && <p className="dim small">Stimmen aus Hyco und Hinweistöne sind garantiert nicht im Stream. Stereo, 48 kHz, 256 kbit/s.</p>}
+        {!appOk && <p className="dim small">App-genauer Ton braucht Windows 10 (2004) oder neuer. Auf diesem System steht nur der komplette System-Ton zur Verfügung.</p>}
 
         <h3 className="studio-head">🎬 Studio</h3>
         <label className="row check">

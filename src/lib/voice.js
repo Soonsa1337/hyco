@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { callFunction, config } from './supabase';
 import { sounds, setUiSilent } from './sound';
+import { createAppAudioTrack } from './appAudio';
 
 // Bitraten liegen bewusst deutlich über dem, was Discord sendet (1080p60 dort ca. 8 Mbit/s)
 export const QUALITIES = {
@@ -35,6 +36,7 @@ const tearDownCompositor = (ex) => {
   cancelAnimationFrame(ex.raf);
   ex.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
   ex.els.forEach((el) => { el.srcObject = null; });
+  if (ex.stop) ex.stop().catch(() => {});
 };
 
 // Kapselt die komplette LiveKit/WebRTC-Logik (Signaling, ICE/STUN/TURN macht LiveKit).
@@ -274,16 +276,18 @@ export function useVoice() {
   };
 
   // Bildschirm/Fenster übertragen. Läuft schon ein Stream, wird er mit den neuen Einstellungen ersetzt.
-  const startShare = async ({ sourceId, audio, quality, codec = 'h264', mode = 'motion', overlay }) => {
+  // audioMode: 'app' = nur die Anwendung bzw. alles außer Hyco (native Komponente), 'system' = kompletter System-Ton, 'off' = ohne Ton
+  const startShare = async ({ sourceId, audio, audioMode = audio ? 'system' : 'off', appPid = 0, quality, codec = 'h264', mode = 'motion', overlay }) => {
     const room = roomRef.current;
     if (!room) return;
     if (shareTracks.current.length) await stopShare();
     const q = QUALITIES[quality];
-    await window.desktop?.pick({ id: sourceId, audio });
+    const systemAudio = audioMode === 'system';
+    await window.desktop?.pick({ id: sourceId, audio: systemAudio });
     const size = q.w ? { width: { ideal: q.w, max: q.w }, height: { ideal: q.h, max: q.h } } : {};
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { ...size, frameRate: { ideal: q.fps, max: q.fps } },
-      audio: audio
+      audio: systemAudio
         ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000, restrictOwnAudio: true }
         : false,
     });
@@ -317,7 +321,23 @@ export function useVoice() {
       videoEncoding: { maxBitrate: q.bitrate, maxFramerate: q.fps, priority: 'high' },
     });
     published.push(video);
-    const sound = stream.getAudioTracks()[0];
+
+    // App-genauer Ton über die native Komponente: Fenster-Stream -> Ton dieser Anwendung,
+    // Bildschirm-Stream -> gewählte Anwendung oder alles außer Hyco (kein Echo der anderen Stimmen)
+    let sound = stream.getAudioTracks()[0];
+    let appAudioError = '';
+    if (audioMode === 'app') {
+      try {
+        const isWindow = /^window:/.test(sourceId || '');
+        const windowId = isWindow ? Number((sourceId.split(':')[1] || '0')) : 0;
+        const opts = appPid ? { mode: 'include', pid: appPid } : isWindow && windowId ? { mode: 'include', windowId } : { mode: 'exclude' };
+        const r = await createAppAudioTrack(opts);
+        sound = r.track;
+        ex.stop = r.stop;
+      } catch (e) {
+        appAudioError = e.message;
+      }
+    }
     if (sound) {
       // Chromium-Bordmittel: eigene App-Ausgabe (Stimmen der anderen) aus dem aufgenommenen System-Ton ausnehmen
       try {
@@ -335,6 +355,7 @@ export function useVoice() {
     }
     shareTracks.current = published;
     patch({ sharing: true });
+    if (appAudioError) throw new Error(`Stream läuft ohne Ton – App-Ton nicht verfügbar: ${appAudioError}`);
   };
 
   // Webcam an/aus

@@ -6,6 +6,15 @@ const { spawn } = require('child_process');
 
 // Vom Renderer gewählte Quelle für den nächsten getDisplayMedia()-Aufruf
 let pendingPick = null;
+
+// Native Tonaufnahme (nur Windows, nur wenn mitgebaut): Ton einzelner Apps bzw. alles außer Hyco
+let appAudio = null;
+try {
+  appAudio = require(path.join(__dirname, '..', 'native', 'hyco-audio'));
+  if (!appAudio.available()) appAudio = null;
+} catch {
+  appAudio = null;
+}
 let win = null;
 let tray = null;
 let quitting = false;
@@ -96,6 +105,27 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('app:version', () => app.getVersion());
+
+  ipcMain.handle('appaudio:available', () => Boolean(appAudio));
+  ipcMain.handle('appaudio:apps', () => (appAudio ? appAudio.listAudioApps().filter((a) => !/^hyco\.exe$/i.test(a.name)) : []));
+  // mode 'exclude': alles außer Hyco; mode 'include': nur die Anwendung (pid oder Fenster-ID aus desktopCapturer)
+  ipcMain.handle('appaudio:start', (event, { mode, pid, windowId }) => {
+    if (!appAudio) throw new Error('App-Ton ist auf diesem System nicht verfügbar.');
+    appAudio.stop();
+    let target = process.pid;
+    let include = false;
+    if (mode === 'include') {
+      include = true;
+      target = pid || (windowId ? appAudio.pidForWindow(Number(windowId)) : 0);
+      if (!target) throw new Error('Anwendung für den Ton nicht gefunden.');
+    }
+    const wc = event.sender;
+    appAudio.start(target, include, (buf) => {
+      if (!wc.isDestroyed()) wc.send('appaudio:data', buf);
+    });
+    return true;
+  });
+  ipcMain.handle('appaudio:stop', () => { appAudio?.stop(); });
   ipcMain.handle('invite:pending', () => {
     const link = pendingInvite;
     pendingInvite = null;
@@ -155,6 +185,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   quitting = true;
+  appAudio?.stop();
 });
 
 app.on('window-all-closed', () => {

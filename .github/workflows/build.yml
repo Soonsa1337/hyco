@@ -30,6 +30,9 @@ jobs:
         shell: bash
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Native Audio-Komponente bauen (WASAPI Process Loopback)
+        run: npm run build:native
+
       - name: Installer bauen
         run: npm run dist:win
 
