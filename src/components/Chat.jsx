@@ -257,24 +257,30 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
     else await supabase.from('reactions').insert({ message_id: m.id, user_id: me.id, emoji });
   };
 
-  // GIF-Suche über KLIPY (Tenor-kompatible Schnittstelle; Tenor selbst wurde 2026 abgeschaltet) – Surge-Vorteil
+  // GIF-Suche über KLIPY (Tenor wurde 2026 abgeschaltet) – Surge-Vorteil
+  // API: https://api.klipy.com/api/v1/<KEY>/gifs/search?q=..&per_page=24  bzw. /gifs/trending
   const searchGifs = async (q) => {
-    const key = appSettings.tenor_key;
+    const key = (appSettings.tenor_key || '').trim();
     if (!key) return setGif({ q, results: [], loading: false, error: 'GIF-Suche ist noch nicht eingerichtet (KLIPY-Key fehlt, siehe Einstellungen → Hyco Surge).' });
     setGif((g) => ({ ...(g || {}), q, loading: true, error: '' }));
     try {
       const base = (appSettings.gif_api_base || 'https://api.klipy.com').replace(/\/$/, '');
-      const params = `key=${encodeURIComponent(key)}&client_key=hyco&limit=24&media_filter=gif,tinygif&contentfilter=medium`;
-      const url = q.trim() ? `${base}/v2/search?q=${encodeURIComponent(q)}&${params}` : `${base}/v2/featured?${params}`;
+      const params = `per_page=24&rating=pg-13&customer_id=${encodeURIComponent(me?.id || 'hyco')}`;
+      const url = q.trim()
+        ? `${base}/api/v1/${encodeURIComponent(key)}/gifs/search?q=${encodeURIComponent(q)}&${params}`
+        : `${base}/api/v1/${encodeURIComponent(key)}/gifs/trending?${params}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const list = data.results || data.data || [];
+      if (data.result === false) throw new Error(data.message || 'API-Fehler');
+      const list = data.data?.data || data.data || data.results || [];
       const pick = (r) => {
-        const f = r.media_formats || r.media || r.file || {};
-        const gifUrl = f.gif?.url || f.gif?.gif?.url || f.md?.gif?.url || f.hd?.gif?.url || r.url;
-        const tiny = f.tinygif?.url || f.nanogif?.url || f.sm?.gif?.url || f.xs?.gif?.url || gifUrl;
-        return { id: r.id || gifUrl, preview: tiny, url: gifUrl };
+        if (r.type === 'ad') return {};
+        const f = r.file || r.files || r.media_formats || {};
+        const u = (v) => v?.gif?.url || v?.webp?.url || v?.url;
+        const gifUrl = u(f.hd) || u(f.md) || u(f.gif) || r.url;
+        const tiny = u(f.sm) || u(f.xs) || u(f.tinygif) || gifUrl;
+        return { id: r.id || r.slug || gifUrl, preview: tiny, url: gifUrl };
       };
       setGif({ q, loading: false, error: '', results: list.map(pick).filter((r) => r.url) });
     } catch (e) {
