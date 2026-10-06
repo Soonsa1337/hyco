@@ -1,11 +1,11 @@
 # Baut den Windows-Installer automatisch auf einem GitHub-Windows-Rechner
 # und veröffentlicht ihn als Release mit Download-Link.
-# Auslöser: ein Tag wie v1.7.0 (oder manuell über "Run workflow").
+# Auslöser: jeder Push auf main. Das Release heißt nach der Version in package.json.
 name: Windows-Build
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -25,6 +25,11 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      - name: Version lesen
+        id: v
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Installer bauen
         run: npm run dist:win
 
@@ -35,10 +40,10 @@ jobs:
           path: release/*.exe
 
       - name: Release veröffentlichen
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: Hyco ${{ github.ref_name }}
+          tag_name: v${{ steps.v.outputs.version }}
+          name: Hyco ${{ steps.v.outputs.version }}
           files: |
             release/*.exe
             release/*.blockmap
