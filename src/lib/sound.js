@@ -26,4 +26,5 @@ export const sounds = {
   leave: () => tone([784, 523]),
   mute: () => tone([330], 0.08),
   unmute: () => tone([660], 0.08),
+  surge: () => tone([523, 659, 784, 1047, 1319], 0.14),
 };

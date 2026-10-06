@@ -76,6 +76,7 @@ function Main({ userId }) {
   const [serverSettings, setServerSettings] = useState(null); // Tab-Name oder null
   const [draft, setDraft] = useState(null);
   const [toast, setToast] = useState('');
+  const [surgeBlast, setSurgeBlast] = useState(null); // ISO-Datum, solange die Surge-Feier eingeblendet ist
   const [appSettings, setAppSettings] = useState({});
   const presence = useRef(null);
   const typingCh = useRef(null);
@@ -203,6 +204,20 @@ function Main({ userId }) {
     const t = setTimeout(() => setToast(''), 4000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Riesige Feier-Einblendung, sobald man selbst Hyco Surge bekommt (Wechsel nicht-Surge → Surge)
+  const prevSurge = useRef(null);
+  useEffect(() => {
+    if (!me) return;
+    const now = isSurge(me);
+    if (prevSurge.current === false && now) {
+      setSurgeBlast(me.surge_until);
+      sounds.surge();
+      window.desktop?.attention?.();
+      if (Notification.permission === 'granted') new Notification('⚡ Du hast jetzt Hyco Surge!', { body: 'Animierte Avatare, Banner, GIFs & mehr sind freigeschaltet.' });
+    }
+    prevSurge.current = now;
+  }, [me?.surge_until, me?.id]);
 
   // Desktop-Benachrichtigung (braucht aktuelle Profile, daher eigener Effekt)
   useEffect(() => bus.on('notify', (m) => {
@@ -547,6 +562,18 @@ function Main({ userId }) {
         </div>
       )}
       {toast && <div className="toast" onClick={() => setToast('')}>{toast}</div>}
+      {surgeBlast && (
+        <div className="surge-blast" onClick={() => setSurgeBlast(null)}>
+          {Array.from({ length: 40 }, (_, i) => <i key={i} style={{ '--i': i, left: `${(i * 37) % 100}%`, animationDelay: `${(i % 10) * 0.12}s` }} />)}
+          <div className="sb-card">
+            <div className="sb-bolt">⚡</div>
+            <h1>Du hast jetzt<br /><span>HYCO SURGE</span></h1>
+            <p>Animierte Avatare · Profil-Banner · GIF-Suche · 4K-Streaming · 25 MB Uploads</p>
+            <p className="dim">Gültig bis {new Date(surgeBlast).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <button className="primary big" onClick={() => { setSurgeBlast(null); setSettings('surge'); }}>Vorteile ansehen</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

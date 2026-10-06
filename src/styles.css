@@ -255,3 +255,22 @@ select.role-add { width: auto; padding: 1px 6px; font-size: 12px; border-radius:
 .gifs { left: 16px; right: 16px; bottom: calc(100% - 20px); max-height: 420px; display: flex; flex-direction: column; gap: 8px; }
 .gif-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; overflow-y: auto; } .gif-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; } .gif-grid img:hover { outline: 2px solid var(--accent); }
 .avatar img { object-fit: cover; }
+
+/* ===== Surge-Feier: riesige Einblendung, wenn man Hyco Surge bekommt ===== */
+.surge-blast { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow: hidden; cursor: pointer;
+  background: radial-gradient(ellipse at center, #ff7a1a33, #05060af2 70%); backdrop-filter: blur(10px); animation: fade .3s; }
+.surge-blast i { position: absolute; top: -6vh; width: 10px; height: 18px; border-radius: 2px; opacity: .9;
+  background: hsl(calc(var(--i) * 37deg), 95%, 60%); animation: confetti 2.8s linear infinite; transform: rotate(calc(var(--i) * 23deg)); }
+@keyframes confetti { to { transform: translateY(112vh) rotate(720deg); opacity: .4; } }
+.surge-blast .sb-card { position: relative; text-align: center; padding: 48px 64px; border-radius: 28px; max-width: min(92vw, 720px);
+  background: linear-gradient(160deg, #1b2030f2, #0d1018f2); border: 2px solid #ffb347; box-shadow: 0 0 0 10px #ff7a1a22, 0 0 120px 20px #ff7a1a66, 0 40px 80px -20px #000;
+  animation: blastIn .7s cubic-bezier(.2, 1.6, .3, 1); }
+.surge-blast .sb-bolt { font-size: 120px; line-height: 1; filter: drop-shadow(0 0 30px #ffb347); animation: boltPulse 1.2s ease-in-out infinite; }
+.surge-blast h1 { font-size: clamp(28px, 5vw, 48px); margin: 8px 0 12px; line-height: 1.1; }
+.surge-blast h1 span { display: block; font-size: 1.5em; letter-spacing: 4px; font-weight: 900;
+  background: linear-gradient(90deg, #ffb347, #ff7a1a, #ffe08a, #ff7a1a); background-size: 300%; -webkit-background-clip: text; color: transparent; animation: shimmer 2s linear infinite; }
+.surge-blast p { font-size: 16px; margin: 6px 0; }
+.surge-blast button.big { margin-top: 18px; font-size: 18px; padding: 14px 32px; border-radius: 14px; }
+@keyframes blastIn { from { transform: scale(.3) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes boltPulse { 50% { transform: scale(1.18); filter: drop-shadow(0 0 60px #ffd27a); } }
+@keyframes shimmer { to { background-position: 300% 0; } }
