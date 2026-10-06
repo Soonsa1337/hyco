@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { QUALITIES, CODECS } from '../lib/voice';
-import { appAudioAvailable } from '../lib/appAudio';
+import { appAudioStatus } from '../lib/appAudio';
 import Avatar from './Avatar.jsx';
 
 // Eine Stream- oder Kamera-Kachel mit Live-Statistik, Stream-Lautstärke und Vollbild
@@ -77,6 +77,7 @@ function SharePicker({ live, onStart, onClose }) {
   const [kind, setKind] = useState('screen');
   const [audioMode, setAudioMode] = useState({ all: 'all', app: 'app', off: 'off' }[localStorage.getItem('audioMode')] || 'all');
   const [appOk, setAppOk] = useState(false);
+  const [appInfo, setAppInfo] = useState(null);
   const [apps, setApps] = useState([]);
   const [appPid, setAppPid] = useState(0);
   const [quality, setQuality] = useState(QUALITIES[localStorage.getItem('quality')] ? localStorage.getItem('quality') : '1080p60');
@@ -95,9 +96,10 @@ function SharePicker({ live, onStart, onClose }) {
       setSourceId(s.find((x) => x.id.startsWith('screen'))?.id || s[0]?.id);
     });
     navigator.mediaDevices.enumerateDevices().then((d) => setCams(d.filter((x) => x.kind === 'videoinput')));
-    appAudioAvailable().then((ok) => {
-      setAppOk(ok);
-      if (ok) window.desktop.appAudio.apps().then(setApps).catch(() => {});
+    appAudioStatus().then((st) => {
+      setAppOk(st.ok);
+      setAppInfo(st);
+      if (st.ok) window.desktop.appAudio.apps().then(setApps).catch(() => {});
     });
   }, []);
 
@@ -164,8 +166,16 @@ function SharePicker({ live, onStart, onClose }) {
             {apps.map((a) => <option key={a.pid} value={a.pid}>{a.name}{a.active ? ' · spielt gerade' : ''}</option>)}
           </select>
         )}
-        {appOk && audioMode !== 'off' && <p className="dim small">Hyco selbst ist nie im Stream – weder die Stimmen der anderen noch Hinweistöne. Keine Rückkopplung.</p>}
-        {!appOk && audioMode !== 'off' && <p className="dim small">Auf diesem System ist nur der komplette System-Ton möglich (inklusive Hyco). Für die Hyco-Ausnahme braucht es Windows 10 Version 2004 oder neuer.</p>}
+        {audioMode !== 'off' && (
+          <label className={appOk ? 'row check' : 'row check dim'}>
+            <input type="checkbox" checked={appOk} disabled readOnly />
+            Hyco als Tonquelle ausschließen (Stimmen der anderen, Hinweistöne) – keine Rückkopplung
+          </label>
+        )}
+        {appOk && audioMode !== 'off' && <p className="dim small">Aktiv. Hyco selbst landet nie im Stream.</p>}
+        {!appOk && audioMode !== 'off' && (
+          <p className="error small">Nicht möglich – die Audio-Komponente ist auf diesem System nicht aktiv ({appInfo?.reason || 'unbekannt'}; {appInfo?.windows || ''}). Es wird der komplette System-Ton inklusive Hyco gesendet. Bitte diesen Text an den Entwickler weitergeben.</p>
+        )}
 
         <h3 className="studio-head">🎬 Studio</h3>
         <label className="row check">

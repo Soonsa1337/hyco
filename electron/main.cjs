@@ -9,11 +9,16 @@ let pendingPick = null;
 
 // Native Tonaufnahme (nur Windows, nur wenn mitgebaut): Ton einzelner Apps bzw. alles außer Hyco
 let appAudio = null;
+let appAudioReason = '';
 try {
   appAudio = require(path.join(__dirname, '..', 'native', 'hyco-audio'));
-  if (!appAudio.available()) appAudio = null;
-} catch {
+  if (!appAudio.available()) {
+    appAudio = null;
+    appAudioReason = 'nur unter Windows verfügbar';
+  }
+} catch (e) {
   appAudio = null;
+  appAudioReason = `Komponente nicht geladen: ${String(e.message || e).slice(0, 160)}`;
 }
 let win = null;
 let tray = null;
@@ -106,7 +111,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('app:version', () => app.getVersion());
 
-  ipcMain.handle('appaudio:available', () => Boolean(appAudio));
+  ipcMain.handle('appaudio:available', () => ({ ok: Boolean(appAudio), reason: appAudioReason, windows: `${process.platform} ${require('os').release()}` }));
   ipcMain.handle('appaudio:apps', () => (appAudio ? appAudio.listAudioApps().filter((a) => !/^hyco\.exe$/i.test(a.name)) : []));
   // mode 'exclude': alles außer Hyco; mode 'include': nur die Anwendung (pid oder Fenster-ID aus desktopCapturer)
   ipcMain.handle('appaudio:start', (event, { mode, pid, windowId }) => {

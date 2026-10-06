@@ -34,7 +34,12 @@ class HycoPcm extends AudioWorkletProcessor {
 registerProcessor('hyco-pcm', HycoPcm);
 `;
 
-export const appAudioAvailable = async () => Boolean(await window.desktop?.appAudio?.available?.());
+export const appAudioStatus = async () => {
+  const r = await window.desktop?.appAudio?.available?.();
+  if (r && typeof r === 'object') return r;
+  return { ok: Boolean(r), reason: r ? '' : 'nicht verfügbar' };
+};
+export const appAudioAvailable = async () => (await appAudioStatus()).ok;
 
 // opts: { mode: 'exclude' } (alles außer Hyco) oder { mode: 'include', pid } / { mode: 'include', windowId }
 export async function createAppAudioTrack(opts) {
