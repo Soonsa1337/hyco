@@ -3,6 +3,7 @@ import { Room, RoomEvent, Track } from 'livekit-client';
 import { callFunction, config } from './supabase';
 import { sounds, setUiSilent } from './sound';
 import { createAppAudioTrack, appAudioAvailable } from './appAudio';
+import { createStudioRenderer } from './studio';
 
 // Bitraten liegen bewusst deutlich über dem, was Discord sendet (1080p60 dort ca. 8 Mbit/s)
 export const QUALITIES = {
@@ -25,16 +26,6 @@ export const micSettings = () => ({
   echoCancellation: localStorage.getItem('micEc') !== 'off',
   autoGainControl: localStorage.getItem('micAgc') !== 'off',
 });
-
-const roundRect = (ctx, x, y, w, h, r) => {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-};
 
 // Studio-Compositing stoppen: Zeichenschleife beenden, Kameras/Capture freigeben, Hilfselemente entfernen
 const tearDownCompositor = (ex) => {
@@ -131,7 +122,7 @@ export function useVoice() {
         muted = true; // kein Mikrofon / keine Berechtigung -> nur zuhören
       }
       sounds.join();
-      setState({ channelId, connecting: false, muted, deaf: false, sharing: false, camera: false });
+      setState({ channelId, connecting: false, muted, deaf: false, sharing: false, camera: false, since: Date.now() });
     } catch (e) {
       patch({ connecting: false });
       throw e;
@@ -208,8 +199,8 @@ export function useVoice() {
     patch({ sharing: false });
   }, []);
 
-  // Facecam + Overlay-Text in Hyco direkt ins Bild rechnen (Canvas), ohne externes Programm.
-  // Liefert die auszusendende Videospur und merkt sich alles zum späteren Aufräumen.
+  // Studio-Overlay: Facecam, Namens-Badge mit LIVE-Puls und Stream-Zeit, Sprecher-Liste, Vignette –
+  // alles per Canvas direkt ins Bild gerechnet, ohne externes Programm.
   const composeStudio = async (screenStream, q, overlay) => {
     const sv = document.createElement('video');
     sv.srcObject = new MediaStream([screenStream.getVideoTracks()[0]]);
@@ -239,43 +230,15 @@ export function useVoice() {
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d', { alpha: false });
-
+    const css = getComputedStyle(document.documentElement);
+    const accent = css.getPropertyValue('--accent').trim() || '#ff7a1a';
+    const accent2 = css.getPropertyValue('--accent2').trim() || '#ff3d6e';
+    const started = Date.now();
+    const frame = createStudioRenderer({ ctx, w, h, sv, cam, overlay, accent, accent2 });
     const draw = () => {
       ex.raf = requestAnimationFrame(draw);
       try {
-        ctx.drawImage(sv, 0, 0, w, h);
-        if (cam && cam.videoWidth) {
-          const frac = overlay.camSize === 's' ? 0.16 : overlay.camSize === 'l' ? 0.34 : 0.24;
-          const cw = Math.round(w * frac);
-          const ch = Math.round((cw * cam.videoHeight) / cam.videoWidth);
-          const m = Math.round(w * 0.015);
-          const x = (overlay.camPos || 'br').includes('l') ? m : w - cw - m;
-          const y = (overlay.camPos || 'br').startsWith('t') ? m : h - ch - m;
-          const rad = Math.round(cw * 0.06);
-          ctx.save();
-          roundRect(ctx, x, y, cw, ch, rad);
-          ctx.clip();
-          ctx.drawImage(cam, x, y, cw, ch);
-          ctx.restore();
-          ctx.lineWidth = Math.max(2, Math.round(w * 0.0025));
-          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-          roundRect(ctx, x, y, cw, ch, rad);
-          ctx.stroke();
-        }
-        if (overlay.label) {
-          const fs = Math.round(h * 0.03);
-          ctx.font = `600 ${fs}px "Segoe UI", system-ui, sans-serif`;
-          const pad = Math.round(fs * 0.4);
-          const tw = ctx.measureText(overlay.label).width;
-          const bx = Math.round(w * 0.015);
-          const by = Math.round(w * 0.015);
-          ctx.fillStyle = 'rgba(0,0,0,0.5)';
-          roundRect(ctx, bx, by, tw + pad * 2, fs + pad * 2, pad);
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.textBaseline = 'top';
-          ctx.fillText(overlay.label, bx + pad, by + pad);
-        }
+        frame((Date.now() - started) / 1000);
       } catch {}
     };
     draw();
@@ -310,7 +273,16 @@ export function useVoice() {
 
     // Studio: Facecam/Overlay nur ins Bild rechnen, wenn gewünscht – sonst unveränderter Direkt-Stream
     const published = [];
-    const useStudio = overlay && (overlay.cam || overlay.label);
+    const useStudio = overlay && (overlay.cam || overlay.label || overlay.voiceList || overlay.vignette);
+    if (useStudio) {
+      overlay.getVoice = () => {
+        const r = roomRef.current;
+        if (!r) return [];
+        return [r.localParticipant, ...r.remoteParticipants.values()]
+          .filter((p) => !p.identity.endsWith('-obs'))
+          .map((p) => ({ name: p.name || p.identity, speaking: p.isSpeaking, muted: !p.isMicrophoneEnabled }));
+      };
+    }
     const ex = { raf: 0, els: [], streams: [stream] };
     let video = screenTrack;
     if (useStudio) {

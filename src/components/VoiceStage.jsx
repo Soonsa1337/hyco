@@ -71,7 +71,7 @@ function VideoTile({ v, voice, main, onFocus }) {
   );
 }
 
-function SharePicker({ live, onStart, onClose }) {
+function SharePicker({ live, me, onStart, onClose }) {
   const [sources, setSources] = useState([]);
   const [sourceId, setSourceId] = useState(null);
   const [kind, setKind] = useState('screen');
@@ -89,6 +89,17 @@ function SharePicker({ live, onStart, onClose }) {
   const [cams, setCams] = useState([]);
   const [camId, setCamId] = useState(localStorage.getItem('camId') || '');
   const [label, setLabel] = useState(localStorage.getItem('streamLabel') || '');
+  const [camShape, setCamShape] = useState(localStorage.getItem('camShape') || 'rounded');
+  const [mirror, setMirror] = useState(localStorage.getItem('camMirror') === 'on');
+  const [badge, setBadge] = useState(localStorage.getItem('badge') !== 'off');
+  const [badgePos, setBadgePos] = useState(localStorage.getItem('badgePos') || 'tl');
+  const [voiceList, setVoiceList] = useState(localStorage.getItem('voiceList') === 'on');
+  const [voicePos, setVoicePos] = useState(localStorage.getItem('voicePos') || 'bl');
+  const [vignette, setVignette] = useState(localStorage.getItem('vignette') === 'on');
+  const preset = (k) => {
+    const p = { clean: [false, false, false, false], minimal: [false, true, false, false], gamer: [true, true, true, true] }[k];
+    setFacecam(p[0]); setBadge(p[1]); setVoiceList(p[2]); setVignette(p[3]);
+  };
 
   useEffect(() => {
     window.desktop?.getSources().then((s) => {
@@ -113,7 +124,17 @@ function SharePicker({ live, onStart, onClose }) {
     localStorage.setItem('camSize', camSize);
     localStorage.setItem('camId', camId);
     localStorage.setItem('streamLabel', label);
-    onStart({ sourceId, audioMode, appPid: Number(appPid) || 0, quality, codec, mode, overlay: { cam: facecam, camId, camPos, camSize, label: label.trim() } });
+    localStorage.setItem('camShape', camShape);
+    localStorage.setItem('camMirror', mirror ? 'on' : 'off');
+    localStorage.setItem('badge', badge ? 'on' : 'off');
+    localStorage.setItem('badgePos', badgePos);
+    localStorage.setItem('voiceList', voiceList ? 'on' : 'off');
+    localStorage.setItem('voicePos', voicePos);
+    localStorage.setItem('vignette', vignette ? 'on' : 'off');
+    onStart({
+      sourceId, audioMode, appPid: Number(appPid) || 0, quality, codec, mode,
+      overlay: { cam: facecam, camId, camPos, camSize, camShape, mirror, label: badge ? (label.trim() || me?.username || 'Hyco') : '', badgePos, voiceList, voicePos, vignette },
+    });
   };
   const shown = sources.filter((s) => s.id.startsWith(kind));
   const q = QUALITIES[quality];
@@ -177,39 +198,39 @@ function SharePicker({ live, onStart, onClose }) {
           <p className="error small">Nicht möglich – die Audio-Komponente ist auf diesem System nicht aktiv ({appInfo?.reason || 'unbekannt'}; {appInfo?.windows || ''}). Es wird der komplette System-Ton inklusive Hyco gesendet. Bitte diesen Text an den Entwickler weitergeben.</p>
         )}
 
-        <h3 className="studio-head">🎬 Studio</h3>
-        <label className="row check">
-          <input type="checkbox" checked={facecam} onChange={(e) => setFacecam(e.target.checked)} />
-          Facecam einblenden (Webcam über dem Bild)
-        </label>
+        <h3 className="studio-head">🎬 Studio-Overlay</h3>
+        <div className="row presets">
+          <span className="dim small" style={{ margin: 0 }}>Vorlage:</span>
+          <button type="button" className="tab" onClick={() => preset('gamer')}>🎮 Gamer</button>
+          <button type="button" className="tab" onClick={() => preset('minimal')}>✨ Minimal</button>
+          <button type="button" className="tab" onClick={() => preset('clean')}>🧼 Ohne Overlay</button>
+        </div>
+
+        <label className="row check"><input type="checkbox" checked={facecam} onChange={(e) => setFacecam(e.target.checked)} />Facecam mit Leuchtrahmen</label>
         {facecam && (
-          <div className="grid2">
-            <div>
-              <label>Kamera</label>
-              <select value={camId} onChange={(e) => setCamId(e.target.value)}>
-                <option value="">Standardkamera</option>
-                {cams.map((c) => <option key={c.deviceId} value={c.deviceId}>{c.label || 'Kamera'}</option>)}
-              </select>
-            </div>
-            <div>
-              <label>Größe</label>
-              <select value={camSize} onChange={(e) => setCamSize(e.target.value)}>
-                <option value="s">Klein</option><option value="m">Mittel</option><option value="l">Groß</option>
-              </select>
-            </div>
-            <div>
-              <label>Position</label>
-              <select value={camPos} onChange={(e) => setCamPos(e.target.value)}>
-                <option value="bl">Unten links</option><option value="br">Unten rechts</option>
-                <option value="tl">Oben links</option><option value="tr">Oben rechts</option>
-              </select>
-            </div>
+          <div className="grid2 sub">
+            <div><label>Kamera</label><select value={camId} onChange={(e) => setCamId(e.target.value)}><option value="">Standardkamera</option>{cams.map((c) => <option key={c.deviceId} value={c.deviceId}>{c.label || 'Kamera'}</option>)}</select></div>
+            <div><label>Größe</label><select value={camSize} onChange={(e) => setCamSize(e.target.value)}><option value="s">Klein</option><option value="m">Mittel</option><option value="l">Groß</option></select></div>
+            <div><label>Position</label><select value={camPos} onChange={(e) => setCamPos(e.target.value)}>{[['tl', 'Oben links'], ['tr', 'Oben rechts'], ['bl', 'Unten links'], ['br', 'Unten rechts']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+            <div><label>Form</label><select value={camShape} onChange={(e) => setCamShape(e.target.value)}><option value="rounded">Abgerundet</option><option value="circle">Kreis</option></select></div>
+            <label className="row check"><input type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} />Spiegeln</label>
           </div>
         )}
-        <label>Overlay-Text (optional)</label>
-        <input maxLength={40} placeholder="z. B. dein Name – wird eingeblendet" value={label} onChange={(e) => setLabel(e.target.value)} />
 
-        <p className="dim small">Sendet mit bis zu {q.bitrate / 1_000_000} Mbit/s. Wenn dein Upload das nicht schafft, wähle eine kleinere Stufe.{(facecam || label) && ' Facecam/Overlay werden in Hyco direkt ins Bild gerechnet – kein externes Programm nötig.'}</p>
+        <label className="row check"><input type="checkbox" checked={badge} onChange={(e) => setBadge(e.target.checked)} />Namens-Badge mit LIVE-Puls und Stream-Zeit</label>
+        {badge && (
+          <div className="grid2 sub">
+            <div><label>Angezeigter Name</label><input maxLength={30} placeholder={me?.username || 'Dein Name'} value={label} onChange={(e) => setLabel(e.target.value)} /></div>
+            <div><label>Position</label><select value={badgePos} onChange={(e) => setBadgePos(e.target.value)}>{[['tl', 'Oben links'], ['tr', 'Oben rechts'], ['bl', 'Unten links'], ['br', 'Unten rechts']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+          </div>
+        )}
+
+        <label className="row check"><input type="checkbox" checked={voiceList} onChange={(e) => setVoiceList(e.target.checked)} />Sprecher-Liste (wer redet, leuchtet auf)</label>
+        {voiceList && <div className="grid2 sub"><div><label>Position</label><select value={voicePos} onChange={(e) => setVoicePos(e.target.value)}>{[['tl', 'Oben links'], ['tr', 'Oben rechts'], ['bl', 'Unten links'], ['br', 'Unten rechts']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div></div>}
+
+        <label className="row check"><input type="checkbox" checked={vignette} onChange={(e) => setVignette(e.target.checked)} />Vignette (dunkle Ränder, kinoartig)</label>
+
+        <p className="dim small">Sendet mit bis zu {q.bitrate / 1_000_000} Mbit/s. Wenn dein Upload das nicht schafft, wähle eine kleinere Stufe.{(facecam || badge || voiceList || vignette) && ' Das Overlay wird in Hyco direkt ins Bild gerechnet – in der Akzentfarbe deines Farbschemas.'}</p>
         <div className="row end">
           <span className="grow" />
           <button onClick={onClose}>Abbrechen</button>
@@ -295,7 +316,7 @@ export default function VoiceStage({ channel, voice, profiles, canStream = true,
         <button className="danger" onClick={() => run(voice.leave)}>📞 Verlassen</button>
       </footer>
       {dialog === 'share' && (
-        <SharePicker live={voice.sharing} onClose={() => setDialog(null)} onStart={(opts) => { setDialog(null); run(() => voice.startShare(opts)); }} />
+        <SharePicker live={voice.sharing} me={profiles[voice.participants.find((p) => p.isLocal)?.identity]} onClose={() => setDialog(null)} onStart={(opts) => { setDialog(null); run(() => voice.startShare(opts)); }} />
       )}
     </div>
   );

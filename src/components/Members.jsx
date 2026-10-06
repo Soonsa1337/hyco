@@ -6,7 +6,7 @@ import { RoleChips, kick, ban } from './Servers.jsx';
 const STATUS_TEXT = { online: 'Online', idle: 'Abwesend', dnd: 'Bitte nicht stören', offline: 'Offline' };
 
 // Mitgliederliste rechts: online nach höchster getrennt angezeigter Rolle gruppiert, darunter offline
-export function Members({ server, profiles, members, roles, memberRoles, statusOf, openProfile }) {
+export function Members({ server, profiles, members, roles, memberRoles, statusOf, openProfile, voiceOf = () => null }) {
   const all = members.filter((m) => m.server_id === server.id).map((m) => profiles[m.user_id]).filter(Boolean).sort((a, b) => a.username.localeCompare(b.username));
   const top = (id) => rolesOf({ serverId: server.id, roles, memberRoles, userId: id })[0];
   const hoisted = (id) => rolesOf({ serverId: server.id, roles, memberRoles, userId: id }).find((r) => r.hoist);
@@ -21,7 +21,7 @@ export function Members({ server, profiles, members, roles, memberRoles, statusO
       <Avatar profile={p} status={statusOf(p.id)} size={32} />
       <span className="grow">
         <b style={{ color: dimmed ? undefined : top(p.id)?.color || p.accent }}>{p.username}{p.id === server.owner_id && ' 👑'}</b>
-        {p.status && <small className="dim">{p.status}</small>}
+        {voiceOf(p.id) ? <small className="ok">🔊 {voiceOf(p.id)}</small> : p.status && <small className="dim">{p.status}</small>}
       </span>
     </div>
   );

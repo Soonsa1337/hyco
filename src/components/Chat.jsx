@@ -32,6 +32,8 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [lightbox, setLightbox] = useState(null); // großes Bild intern anzeigen
+  const [mention, setMention] = useState(null); // { query, index } während man @name tippt
+  const [fresh, setFresh] = useState(0); // neue Nachrichten, während man hochgescrollt hat
   const [, tick] = useState(0);
   const box = useRef(null);
   const input = useRef(null);
@@ -82,6 +84,7 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
     const offMsg = bus.on('message', ({ eventType, new: n, old: o }) => {
       if (eventType === 'DELETE') return setMessages((l) => l.filter((m) => m.id !== o.id));
       if (roomOfMessage(n) !== room.key) return;
+      if (eventType === 'INSERT' && !stick.current && n.user_id !== me.id) setFresh((f) => f + 1);
       setMessages((l) => (eventType === 'INSERT' ? (l.some((m) => m.id === n.id) ? l : [...l, n]) : l.map((m) => (m.id === n.id ? n : m))));
     });
     const offReact = bus.on('reaction', ({ eventType, new: n, old: o }) => {
@@ -117,6 +120,30 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
   const onScroll = () => {
     const el = box.current;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (stick.current) setFresh(0);
+  };
+  const jumpDown = () => {
+    stick.current = true;
+    setFresh(0);
+    if (box.current) box.current.scrollTop = box.current.scrollHeight;
+  };
+
+  // @-Vorschläge: Wort vor dem Cursor, das mit @ beginnt
+  const mentionMatches = mention
+    ? Object.values(profiles).filter((p) => p.username.toLowerCase().startsWith(mention.query.toLowerCase())).slice(0, 6)
+    : [];
+  const updateMention = (el) => {
+    const before = el.value.slice(0, el.selectionStart);
+    const m = before.match(/(?:^|\s)@([\wäöüÄÖÜß.-]*)$/);
+    setMention(m ? { query: m[1], index: 0 } : null);
+  };
+  const pickMention = (name) => {
+    const el = input.current;
+    const before = el.value.slice(0, el.selectionStart).replace(/@[\wäöüÄÖÜß.-]*$/, `@${name} `);
+    const after = el.value.slice(el.selectionStart);
+    setText(before + after);
+    setMention(null);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(before.length, before.length); });
   };
 
   const loadOlder = async () => {
@@ -177,6 +204,17 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
   };
 
   const onKey = (e) => {
+    if (mention && mentionMatches.length) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        return setMention((m) => ({ ...m, index: (m.index + (e.key === 'ArrowDown' ? 1 : mentionMatches.length - 1)) % mentionMatches.length }));
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        return pickMention(mentionMatches[mention.index].username);
+      }
+      if (e.key === 'Escape') return setMention(null);
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -194,6 +232,7 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
 
   const onInput = (e) => {
     setText(e.target.value);
+    updateMention(e.target);
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
     if (Date.now() - lastTyping.current > 2500) {
@@ -318,6 +357,16 @@ export default function Chat({ room, me, profiles, typing, sendTyping, statusOf,
       </div>
 
       <div className="composer">
+        {fresh > 0 && <button className="jump" onClick={jumpDown}>↓ {fresh} neue {fresh === 1 ? 'Nachricht' : 'Nachrichten'}</button>}
+        {mention && mentionMatches.length > 0 && (
+          <div className="popover mentions">
+            {mentionMatches.map((p, i) => (
+              <a key={p.id} className={i === mention.index ? 'channel active' : 'channel'} onMouseDown={(e) => { e.preventDefault(); pickMention(p.username); }}>
+                <Avatar profile={p} size={22} /> {p.username}
+              </a>
+            ))}
+          </div>
+        )}
         {replyTo && (
           <div className="bar">Antwort an <b>{profiles[replyTo.user_id]?.username}</b><span className="grow" /><button className="icon" onClick={() => setReplyTo(null)}>✕</button></div>
         )}

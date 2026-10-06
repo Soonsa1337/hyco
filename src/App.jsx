@@ -20,6 +20,17 @@ import VoiceStage from './components/VoiceStage.jsx';
 
 document.documentElement.dataset.theme = localStorage.getItem('theme') || 'ember';
 
+// Zeigt mm:ss seit einem Zeitpunkt, aktualisiert sich jede Sekunde
+function Elapsed({ since }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const s = Math.max(0, Math.floor((Date.now() - (since || Date.now())) / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
 const PRESENCE = [['online', 'Online'], ['idle', 'Abwesend'], ['dnd', 'Bitte nicht stören'], ['invisible', 'Unsichtbar']];
 
 export default function App() {
@@ -253,6 +264,17 @@ function Main({ userId }) {
     if (voice.channelId && servers && channels.length && !channels.some((c) => c.id === voice.channelId)) voice.leave();
   }, [channels, servers, voice.channelId, voice.leave]);
 
+  // Tastenkürzel wie in Discord: Strg+Umschalt+M Mikro, Strg+Umschalt+D Taub
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!e.ctrlKey || !e.shiftKey || !voice.channelId) return;
+      if (e.code === 'KeyM') { e.preventDefault(); voice.toggleMute(); }
+      if (e.code === 'KeyD') { e.preventDefault(); voice.toggleDeaf(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [voice.channelId, voice.toggleMute, voice.toggleDeaf]);
+
   useEffect(() => {
     const bye = () => voice.leave();
     window.addEventListener('beforeunload', bye);
@@ -444,7 +466,7 @@ function Main({ userId }) {
 
         {voice.channelId && (
           <div className="voicebar">
-            <span className="grow"><b className="ok">● Sprachverbunden</b><small className="dim">{voiceChannel?.name}</small></span>
+            <span className="grow"><b className="ok">● Sprachverbunden</b><small className="dim">{voiceChannel?.name} · <Elapsed since={voice.since} /></small></span>
             <button title="Zum Kanal" onClick={() => { if (voiceChannel) { setServerId(voiceChannel.server_id); setPicked((p) => ({ ...p, [voiceChannel.server_id]: voiceChannel.id })); setView('server'); } }}>🖥️</button>
             <button title="Verlassen" className="danger" onClick={voice.leave}>📞</button>
           </div>
@@ -471,7 +493,7 @@ function Main({ userId }) {
 
       <main>{content}</main>
       {view === 'server' && server && channel?.type === 'text' && (
-        <Members server={server} profiles={profiles} members={members} roles={roles} memberRoles={memberRoles} statusOf={statusOf} openProfile={setCard} />
+        <Members server={server} profiles={profiles} members={members} roles={roles} memberRoles={memberRoles} statusOf={statusOf} openProfile={setCard} voiceOf={(id) => channels.find((c) => c.id === online[id]?.voice)?.name} />
       )}
 
       {card && (

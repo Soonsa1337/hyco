@@ -30,8 +30,19 @@ function inline(text, k, ctx) {
   return out;
 }
 
+// Zeilen, die mit "> " beginnen, werden als Zitat dargestellt
+function block(text, k, ctx) {
+  const out = [];
+  text.split('\n').forEach((line, i) => {
+    if (i) out.push('\n');
+    if (/^>\s?/.test(line)) out.push(<span key={`${k}-q${i}`} className="quote">{inline(line.replace(/^>\s?/, ''), `${k}-${i}`, ctx)}</span>);
+    else out.push(...inline(line, `${k}-${i}`, ctx));
+  });
+  return out;
+}
+
 export function renderContent(text, ctx) {
-  return text.split(/```([\s\S]*?)```/g).map((p, i) => (i % 2 ? <pre key={i}>{p.replace(/^\n|\n$/g, '')}</pre> : inline(p, i, ctx)));
+  return text.split(/```([\s\S]*?)```/g).map((p, i) => (i % 2 ? <pre key={i}>{p.replace(/^\n|\n$/g, '')}</pre> : block(p, i, ctx)));
 }
 
 export const mentionsUser = (text, username) =>

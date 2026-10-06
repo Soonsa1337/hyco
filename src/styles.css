@@ -232,3 +232,14 @@ select.role-add { width: auto; padding: 1px 6px; font-size: 12px; border-radius:
 .settings, .settings.wide { width: min(900px, calc(100vw - 32px)); height: min(640px, calc(100vh - 32px)); }
 .settings nav { flex: none; }
 @media (max-width: 760px) { .sources { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } .settings nav { width: 150px; } }
+.presets { gap: 6px; flex-wrap: wrap; } .presets .tab { background: var(--bg4); color: var(--fg); }
+.grid2.sub { padding: 8px 10px 10px; border-radius: 10px; background: var(--bg1); border: 1px solid var(--line); }
+.grid2.sub .row.check { grid-column: 1 / -1; margin: 0; }
+.studio-head { margin-top: 6px; }
+
+/* ---------- Phase-2-Feinschliff ---------- */
+.quote { display: inline-block; padding-left: 10px; border-left: 3px solid var(--bg4); color: var(--dim); }
+.jump { position: absolute; left: 50%; top: -38px; transform: translateX(-50%); padding: 6px 14px; border-radius: 14px; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 24px -8px var(--glow); z-index: 6; animation: pop .15s; }
+.mentions { left: 16px; right: 16px; bottom: calc(100% - 20px); max-height: 240px; overflow-y: auto; }
+.mentions .channel { gap: 10px; }
+.meter { height: 10px; border-radius: 6px; background: var(--bg0); overflow: hidden; } .meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--yellow) 70%, var(--red)); transition: width .06s; }

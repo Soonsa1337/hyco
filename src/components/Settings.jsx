@@ -29,11 +29,41 @@ export default function Settings({ me, voice, onClose }) {
   const [notify, setNotify] = useState(localStorage.getItem('notify') !== 'off');
   const [msg, setMsg] = useState('');
   const [appVersion, setAppVersion] = useState('');
+  const [level, setLevel] = useState(0); // Mikrofon-Pegel 0..1
   const [rel, setRel] = useState({ done: '' });
 
   useEffect(() => {
     window.desktop?.version?.().then(setAppVersion);
   }, []);
+
+  // Pegelanzeige fürs gewählte Mikrofon, solange der Audio-Tab offen ist
+  useEffect(() => {
+    if (tab !== 'audio') return undefined;
+    let ctx; let raf; let stream;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: input ? { exact: input } : undefined, noiseSuppression: mic.ns, echoCancellation: mic.ec, autoGainControl: mic.agc } });
+        ctx = new AudioContext();
+        const an = ctx.createAnalyser();
+        an.fftSize = 512;
+        ctx.createMediaStreamSource(stream).connect(an);
+        const buf = new Float32Array(an.fftSize);
+        const loop = () => {
+          an.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
+          setLevel(Math.min(1, Math.sqrt(sum / buf.length) * 4));
+          raf = requestAnimationFrame(loop);
+        };
+        loop();
+      } catch {}
+    })();
+    return () => {
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+      ctx?.close();
+    };
+  }, [tab, input, mic.ns, mic.ec, mic.agc]);
 
   useEffect(() => {
     // Einmal Mikrofonzugriff anfragen, sonst liefert enumerateDevices keine Namen
@@ -127,6 +157,8 @@ export default function Settings({ me, voice, onClose }) {
               <h2>Sprache & Audio</h2>
               <label>Eingabegerät (Mikrofon)</label>
               <select value={input} onChange={pick('audioinput', setInput)}><option value="">Systemstandard</option>{options('audioinput')}</select>
+              <div className="meter" title="Mikrofon-Pegel"><i style={{ width: `${Math.round(level * 100)}%` }} /></div>
+              <p className="dim small" style={{ margin: 0 }}>Sprich etwas – der Balken zeigt, was dein Mikrofon nach der Verarbeitung liefert.</p>
               <label>Ausgabegerät (Kopfhörer/Lautsprecher)</label>
               <select value={output} onChange={pick('audiooutput', setOutput)}><option value="">Systemstandard</option>{options('audiooutput')}</select>
               <label>Mikrofon-Verarbeitung</label>
