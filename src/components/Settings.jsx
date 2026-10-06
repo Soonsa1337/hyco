@@ -17,6 +17,13 @@ export default function Settings({ me, voice, onClose }) {
   const [input, setInput] = useState(localStorage.getItem('audioInput') || '');
   const [output, setOutput] = useState(localStorage.getItem('audioOutput') || '');
   const [ptt, setPtt] = useState(localStorage.getItem('ptt') || '');
+  const [mic, setMic] = useState({ ns: localStorage.getItem('micNs') !== 'off', ec: localStorage.getItem('micEc') !== 'off', agc: localStorage.getItem('micAgc') !== 'off' });
+  const toggleMic = (key, store) => (e) => {
+    const on = e.target.checked;
+    setMic((m) => ({ ...m, [key]: on }));
+    localStorage.setItem(store, on ? 'on' : 'off');
+    voice.applyMicSettings?.().catch(() => {});
+  };
   const [capture, setCapture] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'ember');
   const [notify, setNotify] = useState(localStorage.getItem('notify') !== 'off');
@@ -122,6 +129,11 @@ export default function Settings({ me, voice, onClose }) {
               <select value={input} onChange={pick('audioinput', setInput)}><option value="">Systemstandard</option>{options('audioinput')}</select>
               <label>Ausgabegerät (Kopfhörer/Lautsprecher)</label>
               <select value={output} onChange={pick('audiooutput', setOutput)}><option value="">Systemstandard</option>{options('audiooutput')}</select>
+              <label>Mikrofon-Verarbeitung</label>
+              <label className="row check"><input type="checkbox" checked={mic.ns} onChange={toggleMic('ns', 'micNs')} />Geräuschunterdrückung (Tastatur, Lüfter, Hintergrund)</label>
+              <label className="row check"><input type="checkbox" checked={mic.ec} onChange={toggleMic('ec', 'micEc')} />Echounterdrückung (verhindert Rückkopplung über Lautsprecher)</label>
+              <label className="row check"><input type="checkbox" checked={mic.agc} onChange={toggleMic('agc', 'micAgc')} />Automatische Lautstärke (gleicht leise und laute Stimme aus)</label>
+              <p className="dim small">Wirkt sofort, auch mitten im Gespräch. Für Musik oder sehr gute Mikrofone alle drei ausschalten.</p>
               <label>Kamera-Auflösung</label>
               <select defaultValue={localStorage.getItem('camRes') || '720p'} onChange={(e) => localStorage.setItem('camRes', e.target.value)}>
                 <option value="720p">720p</option>

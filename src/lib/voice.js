@@ -19,6 +19,12 @@ export const CODECS = { h264: 'H.264 (kompatibel, GPU-beschleunigt)', vp9: 'VP9 
 export const CAMERA = { '720p': { width: 1280, height: 720, frameRate: 30 }, '1080p': { width: 1920, height: 1080, frameRate: 30 } };
 
 const stored = (k) => localStorage.getItem(k) || '';
+// Mikrofon-Verarbeitung (Einstellungen → Sprache & Audio); standardmäßig alles an
+export const micSettings = () => ({
+  noiseSuppression: localStorage.getItem('micNs') !== 'off',
+  echoCancellation: localStorage.getItem('micEc') !== 'off',
+  autoGainControl: localStorage.getItem('micAgc') !== 'off',
+});
 
 const roundRect = (ctx, x, y, w, h, r) => {
   ctx.beginPath();
@@ -78,9 +84,7 @@ export function useVoice() {
         dynacast: true,
         audioCaptureDefaults: {
           deviceId: stored('audioInput') || undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          ...micSettings(),
         },
         audioOutput: { deviceId: stored('audioOutput') || undefined },
       });
@@ -175,6 +179,12 @@ export function useVoice() {
     audioEls.current.forEach((el) => (el.muted = deaf));
     patch({ deaf });
     if (deaf) await setMuted(true);
+  };
+
+  // Geräuschunterdrückung & Co. im laufenden Gespräch neu anwenden
+  const applyMicSettings = async () => {
+    const pub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.Microphone);
+    if (pub?.track) await pub.track.restartTrack({ deviceId: stored('audioInput') || undefined, ...micSettings() });
   };
 
   const setDevice = async (kind, deviceId) => {
@@ -391,5 +401,5 @@ export function useVoice() {
     }
   }
 
-  return { ...state, participants, videos, join, leave, toggleMute, toggleDeaf, setDevice, setVolume, setStreamVolume, startShare, stopShare, toggleCamera };
+  return { ...state, participants, videos, join, leave, toggleMute, toggleDeaf, setDevice, setVolume, setStreamVolume, startShare, stopShare, toggleCamera, applyMicSettings };
 }
